@@ -76,15 +76,8 @@ pub mod decay_math {
                     .saturating_div(HALF_LIFE);
 
                 // --- 4. Taylor series for 2^(-f) = e^(-f * ln2) ---
-                // Let u = f * ln2  (still fixed-point)
+                // Let u = f * ln2
                 // e^(-u) ≈ 1 - u + u²/2 - u³/6
-                //
-                // FIX: the original code computed u2 = u*u/SCALE but then used
-                //      u2*u/SCALE/6 for the cubic term.  That collapses two
-                //      divisions by SCALE into one, making the cubic term ~SCALE
-                //      times too large and producing wild over-corrections.
-                //      Each multiplication by a fixed-point value must be
-                //      followed by exactly one division by SCALE.
                 let u = f.saturating_mul(LN2).saturating_div(SCALE);
                 let u2 = u.saturating_mul(u).saturating_div(SCALE); // u²
                 let u3 = u2.saturating_mul(u).saturating_div(SCALE); // u³
@@ -94,17 +87,13 @@ pub mod decay_math {
                 let term3 = u2 / 2;      // u²/2
                 let term4 = u3 / 6;      // u³/6
 
-                // e^(-u) ≈ 1 - u + u²/2 - u³/6  (all terms non-negative; combine signs)
+                // e^(-u) ≈ 1 - u + u²/2 - u³/6
                 let pos = term1.saturating_add(term3);
                 let neg = term2.saturating_add(term4);
                 let frac_approx = pos.saturating_sub(neg);
 
                 // --- 5. Apply the integer part of the decay via right-shift ---
                 // Full decay = frac_approx >> i  (== frac_approx / 2^i)
-                //
-                // FIX: the original used checked_shr which panics / returns None on
-                //      a shift >= 64 only on some platforms; the explicit >= 128
-                //      guard below is unambiguous and correct for u128.
                 let decay_fraction: u128 = if i >= 128 {
                     0
                 } else {
@@ -119,7 +108,7 @@ pub mod decay_math {
                     _ => 0,
                 };
 
-                // --- 7. impact = weight * decay_fraction  (both are fixed-point, divide once) ---
+                // --- 7. impact = weight * decay_fraction 2---
                 let decay_i128 = i128::try_from(decay_fraction).unwrap_or(0);
                 let impact = weight
                     .saturating_mul(decay_i128)
