@@ -373,11 +373,10 @@ export default function DiscoveryTab({
                             {agent.reputation}
                           </p>
                           <AgentInteractionPanel
-                          agentAddress={agent.address as `0x${string}`}
-                          onSuccess={(addr, type) => {
-                            // Optional: trigger a refetch of agent data to update the interaction history
-                            console.log(`Recorded type ${type} for ${addr}`);
-                          }}
+                            agentAddress={agent.address as `0x${string}`}
+                            agentName={agent.name}
+                            agentProfile={agent.description}
+                            onSuccess={(addr, type) => console.log(`Recorded type ${type} for ${addr}`)}
                           />
                           <button
                             type="button"
