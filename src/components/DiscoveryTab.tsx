@@ -17,6 +17,8 @@ import {
   interactionTypeColor,
 } from "@/lib/contract";
 import type { SearchMeta } from "@/hooks/useSearchWithPayment.wagmi";
+import AgentInteractionPanel from "@/components/AgentInteractionPanel";
+import type { InteractionType } from "@/hooks/useRecordInteractions.wagmi";
 
 interface SearchResult {
   address: string;
@@ -370,6 +372,13 @@ export default function DiscoveryTab({
                           <p className="text-base font-mono font-bold text-accent value-highlight">
                             {agent.reputation}
                           </p>
+                          <AgentInteractionPanel
+                          agentAddress={agent.address as `0x${string}`}
+                          onSuccess={(addr, type) => {
+                            // Optional: trigger a refetch of agent data to update the interaction history
+                            console.log(`Recorded type ${type} for ${addr}`);
+                          }}
+                          />
                           <button
                             type="button"
                             className="mt-3 text-xs font-medium text-primary hover:text-primary-light transition-colors flex items-center gap-1"

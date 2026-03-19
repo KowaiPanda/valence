@@ -5,10 +5,10 @@ import {
   useAccount,
   useWriteContract,
   useSwitchChain,
+  useSendTransaction,
 } from "wagmi";
 import { SOLIDITY_ADDRESS, VALENCE_ABI, publicClient } from "@/lib/contract";
 import { polkadotTestnet } from "@/lib/wagmi.config";
-import type { Address } from "viem";
 
 export type SearchResult = {
   address: string;
@@ -56,6 +56,7 @@ export function useSearchWithPayment() {
   const { address, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
 
   const search = useCallback(
     async (query: string) => {
@@ -77,34 +78,24 @@ export function useSearchWithPayment() {
           await switchChainAsync({ chainId: polkadotTestnet.id });
         }
 
-        // ── 2. Fetch fee + owner from chain ──────────────────────────────
-        const [feeRaw, owner] = await Promise.all([
-          publicClient.readContract({
-            address: SOLIDITY_ADDRESS,
-            abi: VALENCE_ABI,
-            functionName: "micropaymentFee",
-          }),
-          publicClient.readContract({
-            address: SOLIDITY_ADDRESS,
-            abi: VALENCE_ABI,
-            functionName: "owner",
-          }),
-        ]);
-
-        // ── 3. Send recordInteraction(owner, 1) with fee ─────────────────
-        // Type 1 = x402 payment — goes on the reputation ledger
-        setStatus("awaiting_payment");
-
-        const hash = await writeContractAsync({
+        // ── 2. Fetch fee from chain ──────────────────────────────────────────────
+        const feeRaw = await publicClient.readContract({
           address: SOLIDITY_ADDRESS,
           abi: VALENCE_ABI,
-          functionName: "recordInteraction",
-          args: [owner as Address, 1],
-          value: feeRaw as bigint,
-        });
+          functionName: "micropaymentFee",
+        }) as bigint;
 
-        setTxHash(hash);
-        setStatus("confirming");
+        // ── 3. Plain transfer to owner wallet — NOT a contract call ──────────────
+        // This is the x402 search fee. It does NOT record anything on-chain.
+        setStatus("awaiting_payment");
+
+        const OWNER_ADDRESS = process.env.NEXT_PUBLIC_OWNER_ADDRESS as `0x${string}`;
+
+        const hash = await sendTransactionAsync({
+          to: OWNER_ADDRESS,   // owner wallet directly, not the contract
+          value: feeRaw,
+          gas: 21000n,         // plain transfer — no contract execution needed
+        });
 
         // ── 4. Wait for on-chain confirmation ────────────────────────────
         await publicClient.waitForTransactionReceipt({ hash });

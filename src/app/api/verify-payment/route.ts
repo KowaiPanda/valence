@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPaymentTx } from "@/lib/chain";
+import { verifySearchPayment } from "@/lib/chain";
 import { cacheSet } from "@/lib/cache";
 
 export async function POST(req: NextRequest) {
@@ -9,10 +9,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "txHash and address required" }, { status: 400 });
   }
 
-  const valid = await verifyPaymentTx(txHash, address);
+  const result = await verifySearchPayment(txHash, address);
 
-  if (!valid) {
-    return NextResponse.json({ error: "Payment not verified" }, { status: 402 });
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.reason ?? "Payment not verified" },
+      { status: 402 }
+    );
   }
 
   // Issue a short-lived search pass (5 min) tied to this address

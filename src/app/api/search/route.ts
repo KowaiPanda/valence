@@ -36,13 +36,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const profiles = getAgentProfiles();
-  const knownAgents = await getKnownAgents();
-
-  const agentList = knownAgents.map((addr) => ({
-    address: addr,
-    profile: profiles[addr.toLowerCase()] ?? profiles[addr] ?? `Agent ${addr.slice(0, 8)}`,
-  }));
+  const agentList = await getKnownAgents();
 
   if (agentList.length === 0) {
     return NextResponse.json({ results: [] });

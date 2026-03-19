@@ -2,7 +2,7 @@ import { createConfig, http } from "wagmi";
 import { injected, walletConnect } from "wagmi/connectors";
 
 export const polkadotTestnet = {
-  id: 420420421,
+  id: 420420417,
   name: "Polkadot Hub TestNet",
   nativeCurrency: { name: "PAS", symbol: "PAS", decimals: 18 },
   rpcUrls: {

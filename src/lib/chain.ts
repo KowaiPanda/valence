@@ -34,13 +34,13 @@ export async function getReputationScore(
       functionName: "getAgentReputation",
       args: [agent],
     });
-    return Number(raw);
+    return Number(raw); // already ×100 scaled by the Rust contract
   } catch {
     return 1000;
   }
 }
 
-// Sybil detection based on interaction patterns
+// ── Sybil detection — fetch all InteractionRecorded events for an agent ───────
 // event InteractionRecorded(address indexed from, address indexed agent, ...)
 // We filter by `agent` in the second indexed position
 export async function getSybilScore(
@@ -52,7 +52,7 @@ export async function getSybilScore(
       event: parseAbi([
         "event InteractionRecorded(address indexed from, address indexed agent, uint8 interactionType)",
       ])[0],
-      args: { agent },
+      args: { agent }, // filter on the second indexed param
       fromBlock: 0n,
     });
 
@@ -75,15 +75,13 @@ export async function getSybilScore(
   }
 }
 
-export async function getKnownAgents(): Promise<`0x${string}`[]> {
-  // First try env var (manual list) — fastest path for hackathon demo
-  const envList = (process.env.REGISTERED_AGENTS ?? "")
-    .split(",")
-    .map((a) => a.trim())
-    .filter(Boolean) as `0x${string}`[];
-  if (envList.length > 0) return envList;
+export async function getKnownAgents(): Promise<{ address: `0x${string}`; profile: string }[]> {
+  const profiles: Record<string, string> = (() => {
+    try { return JSON.parse(process.env.AGENT_PROFILES ?? "{}"); }
+    catch { return {}; }
+  })();
 
-  // Fallback: discover from on-chain events
+  // Discover addresses from on-chain InteractionRecorded events
   try {
     const logs = await client.getLogs({
       address: CONTRACT_ADDRESS,
@@ -93,42 +91,47 @@ export async function getKnownAgents(): Promise<`0x${string}`[]> {
       fromBlock: 0n,
     });
 
-    const agents = new Set<`0x${string}`>();
+    const agents = new Map<string, string>();
     for (const log of logs) {
-      const agent = (log.args as { agent: string }).agent as `0x${string}`;
-      agents.add(agent.toLowerCase() as `0x${string}`);
+      const addr = (log.args as { agent: string }).agent.toLowerCase() as `0x${string}`;
+      // Use env profile if available, otherwise use address as fallback
+      const profile = profiles[addr] ?? profiles[addr.toLowerCase()] ?? `Agent ${addr.slice(0, 10)}`;
+      agents.set(addr, profile);
     }
-    return Array.from(agents);
+
+    return Array.from(agents.entries()).map(([address, profile]) => ({
+      address: address as `0x${string}`,
+      profile,
+    }));
   } catch {
     return [];
   }
 }
 
-// Verify a payment tx before granting a search pass
-export async function verifyPaymentTx(
+export const OWNER_ADDRESS = process.env
+  .NEXT_PUBLIC_OWNER_ADDRESS as `0x${string}`;
+
+export async function verifySearchPayment(
   txHash: `0x${string}`,
   expectedFrom: `0x${string}`
-): Promise<boolean> {
+): Promise<{ ok: boolean; reason?: string }> {
   try {
     const [receipt, tx] = await Promise.all([
       client.getTransactionReceipt({ hash: txHash }),
       client.getTransaction({ hash: txHash }),
     ]);
 
-    // Fetch on-chain fee
-    const fee = await client.readContract({
-      address: CONTRACT_ADDRESS,
-      abi: ABI,
-      functionName: "micropaymentFee",
-    });
+    if (receipt.status !== "success")
+      return { ok: false, reason: "Transaction failed" };
+    if (tx.from.toLowerCase() !== expectedFrom.toLowerCase())
+      return { ok: false, reason: "Sender mismatch" };
+    if (tx.to?.toLowerCase() !== OWNER_ADDRESS.toLowerCase())
+      return { ok: false, reason: "Wrong recipient — must send to owner address" };
+    if (tx.value < 1_000_000_000_000_000n)
+      return { ok: false, reason: "Insufficient payment (min 0.001 PAS)" };
 
-    return (
-      receipt.status === "success" &&
-      tx.from.toLowerCase() === expectedFrom.toLowerCase() &&
-      tx.to?.toLowerCase() === CONTRACT_ADDRESS.toLowerCase() &&
-      tx.value >= (fee as bigint)
-    );
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, reason: "Could not fetch transaction" };
   }
 }
