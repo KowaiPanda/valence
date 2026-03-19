@@ -93,70 +93,77 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
-      <Header />
+    <div className="flex flex-col h-screen overflow-hidden relative">
+      {/* Animated Background */}
+      <div className="animated-bg" />
 
-      <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
-        {/* Left: Main Content */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Tab Navigation */}
-          <div className="flex items-center gap-1 mb-4 overflow-x-auto pb-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`tab-btn ${
-                  activeTab === tab.id ? "active" : ""
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                <span className="whitespace-nowrap">{tab.label}</span>
-                {tab.id === "gatekeeper" && (
-                  <Zap className="w-3 h-3 text-primary" />
-                )}
-              </button>
-            ))}
+      {/* Content */}
+      <div className="relative z-10 flex flex-col h-full">
+        <Header />
+        <div className="header-glow-line" />
+
+        <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
+          {/* Left: Main Content */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-1 mb-4 overflow-x-auto pb-1">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`tab-btn ${
+                    activeTab === tab.id ? "active" : ""
+                  }`}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  <span className="whitespace-nowrap">{tab.label}</span>
+                  {tab.id === "gatekeeper" && (
+                    <Zap className="w-3 h-3 text-primary" />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            <motion.div
+              key={activeTab}
+              className="flex-1 overflow-hidden"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              {activeTab === "gatekeeper" && (
+                <GatekeeperTab onSearchComplete={handleSearchComplete} />
+              )}
+              {activeTab === "discovery" && (
+                <DiscoveryTab
+                  agents={agents}
+                  loading={loading}
+                  searchQuery={searchQuery}
+                  searchResults={searchResults}
+                  searchMeta={searchMeta}
+                  selectedAgent={selectedAgent}
+                  onSelectAgent={(address) => setSelectedAgent(address)}
+                  onOpenTrustGraph={() => setActiveTab("trustgraph")}
+                />
+              )}
+              {activeTab === "trustgraph" && (
+                <TrustGraphTab
+                  agents={agents}
+                  interactions={interactions}
+                  loading={loading}
+                  selectedAgent={selectedAgent}
+                  onSelectAgent={(address) => setSelectedAgent(address)}
+                />
+              )}
+              {activeTab === "architecture" && <ArchitectureTab />}
+            </motion.div>
           </div>
 
-          {/* Tab Content */}
-          <motion.div
-            key={activeTab}
-            className="flex-1 overflow-hidden"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            {activeTab === "gatekeeper" && (
-              <GatekeeperTab onSearchComplete={handleSearchComplete} />
-            )}
-            {activeTab === "discovery" && (
-              <DiscoveryTab
-                agents={agents}
-                loading={loading}
-                searchQuery={searchQuery}
-                searchResults={searchResults}
-                searchMeta={searchMeta}
-                selectedAgent={selectedAgent}
-                onSelectAgent={(address) => setSelectedAgent(address)}
-                onOpenTrustGraph={() => setActiveTab("trustgraph")}
-              />
-            )}
-            {activeTab === "trustgraph" && (
-              <TrustGraphTab
-                agents={agents}
-                interactions={interactions}
-                loading={loading}
-                selectedAgent={selectedAgent}
-                onSelectAgent={(address) => setSelectedAgent(address)}
-              />
-            )}
-            {activeTab === "architecture" && <ArchitectureTab />}
-          </motion.div>
-        </div>
-
-        {/* Right: Agent Sidebar */}
-        <AgentSidebar agents={agents} loading={loading} />
-      </main>
+          {/* Right: Agent Sidebar */}
+          <AgentSidebar agents={agents} loading={loading} />
+        </main>
+      </div>
     </div>
   );
 }

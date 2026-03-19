@@ -8,6 +8,7 @@ import {
   Cpu,
   Zap,
   TrendingUp,
+  ExternalLink,
 } from "lucide-react";
 import {
   type AgentData,
@@ -36,6 +37,51 @@ interface DiscoveryTabProps {
   selectedAgent?: `0x${string}`;
   onSelectAgent?: (address: `0x${string}`) => void;
   onOpenTrustGraph?: () => void;
+}
+
+function ScoreRing({ value, size = 44, strokeWidth = 3, color }: { value: number; size?: number; strokeWidth?: number; color: string }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (value / 100) * circumference;
+
+  return (
+    <div className="score-ring" style={{ width: size, height: size }}>
+      <svg width={size} height={size}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="rgba(34, 28, 56, 0.5)"
+          strokeWidth={strokeWidth}
+        />
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          initial={{ strokeDashoffset: circumference }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1.2, ease: "easeOut", delay: 0.3 }}
+          style={{ filter: `drop-shadow(0 0 4px ${color}40)` }}
+        />
+      </svg>
+      <span className="score-ring-value text-sm font-bold" style={{ color }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function getMedalClass(index: number): string {
+  if (index === 0) return "medal medal-gold";
+  if (index === 1) return "medal medal-silver";
+  if (index === 2) return "medal medal-bronze";
+  return "";
 }
 
 export default function DiscoveryTab({
@@ -78,14 +124,15 @@ export default function DiscoveryTab({
 
   return (
     <div className="flex flex-col gap-4 h-full">
+      {/* Header Row */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold">Discovery Leaderboard</h2>
+          <h2 className="text-xl font-bold tracking-tight">Discovery Leaderboard</h2>
           <p className="text-xs text-muted mt-1">
             {searchQuery ? (
               <>
                 Results for &ldquo;<span className="text-primary">{searchQuery}</span>&rdquo;
-                <> — <span className="text-accent">Live Gemini + PVM scoring</span></>
+                <> -- <span className="text-accent">Live Gemini + PVM scoring</span></>
               </>
             ) : (
               "Run a gated search to load real backend-ranked agents"
@@ -93,10 +140,10 @@ export default function DiscoveryTab({
           </p>
         </div>
         <div
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs shrink-0"
+          className="badge"
           style={{
-            background: "rgba(139, 92, 246, 0.1)",
-            border: "1px solid rgba(139, 92, 246, 0.2)",
+            borderColor: "rgba(139, 92, 246, 0.2)",
+            background: "rgba(139, 92, 246, 0.06)",
             color: "#8B5CF6",
           }}
         >
@@ -105,8 +152,9 @@ export default function DiscoveryTab({
         </div>
       </div>
 
-      <div className="glass-card p-3 text-xs">
-        <div className="flex flex-wrap items-center gap-2 mb-2">
+      {/* Formula Card */}
+      <div className="glass-card-premium p-4 text-xs">
+        <div className="flex flex-wrap items-center gap-2 mb-2.5">
           {[
             { label: "On-chain", color: "#00E6A0" },
             { label: "Gemini", color: "#8B5CF6" },
@@ -114,10 +162,10 @@ export default function DiscoveryTab({
           ].map((source) => (
             <span
               key={source.label}
-              className="px-2 py-1 rounded-full border"
+              className="badge"
               style={{
-                borderColor: `${source.color}50`,
-                background: `${source.color}14`,
+                borderColor: `${source.color}30`,
+                background: `${source.color}0a`,
                 color: source.color,
               }}
             >
@@ -125,39 +173,41 @@ export default function DiscoveryTab({
             </span>
           ))}
           {formattedUpdateTime && (
-            <span className="text-muted">Updated {formattedUpdateTime}</span>
+            <span className="text-muted text-[11px]">Updated {formattedUpdateTime}</span>
           )}
           {typeof searchMeta?.totalAgents === "number" && (
-            <span className="text-muted">Agents scanned: {searchMeta.totalAgents}</span>
+            <span className="text-muted text-[11px]">Agents scanned: {searchMeta.totalAgents}</span>
           )}
         </div>
         <div className="text-muted leading-relaxed">
           <span className="text-foreground font-medium">Valence score formula:</span>{" "}
-          <span className="font-mono">0.6 × Gemini + 0.4 × On-Chain Trust</span>
+          <span className="font-mono text-[11px]">0.6 x Gemini + 0.4 x On-Chain Trust</span>
           {focusAgent && (
             <>
-              {" "}→ <span className="font-mono">0.6 × {focusAgent.llmRelevancy} + 0.4 × {focusAgent.onChainTrust} = {focusAgent.valenceScore}</span>
+              {" "}&rarr; <span className="font-mono text-[11px]">0.6 x {focusAgent.llmRelevancy} + 0.4 x {focusAgent.onChainTrust} = {focusAgent.valenceScore}</span>
             </>
           )}
           . Sybil multiplier is applied server-side (flagged agents are penalized), and trust uses 30-day exponential decay from PVM math.
         </div>
       </div>
 
-      <div className="grid grid-cols-[1fr_130px_130px_120px] gap-3 px-4 text-xs text-muted uppercase tracking-wider font-medium">
+      {/* Column Headers */}
+      <div className="grid grid-cols-[1fr_120px_120px_100px] gap-3 px-4 text-[10px] text-muted uppercase tracking-wider font-semibold">
         <span>Agent</span>
         <span className="text-center">LLM Relevancy</span>
         <span className="text-center">On-Chain Trust</span>
         <span className="text-center">Valence Score</span>
       </div>
 
+      {/* Agent List */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-1">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-20 glass-card animate-pulse" />
+            <div key={i} className="h-20 glass-card shimmer" />
           ))
         ) : sorted.length === 0 ? (
           <div className="text-center text-muted py-16">
-            <Cpu className="w-8 h-8 mx-auto mb-3 opacity-40" />
+            <Cpu className="w-8 h-8 mx-auto mb-3 opacity-30" />
             <p className="text-sm">
               {searchQuery ? "No backend results returned for this query." : "No search results yet."}
             </p>
@@ -170,60 +220,80 @@ export default function DiscoveryTab({
         ) : (
           sorted.map((agent, idx) => {
             const isExpanded = expandedAgent === agent.address;
+            const isTopThree = idx < 3;
             return (
               <motion.div
                 key={agent.address}
                 className="glass-card overflow-hidden"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.04 }}
+                transition={{ delay: idx * 0.06 }}
               >
                 <div
-                  className="grid grid-cols-[1fr_130px_130px_120px] gap-3 items-center p-4 cursor-pointer hover:bg-surface-light/50 transition-colors"
+                  className="grid grid-cols-[1fr_120px_120px_100px] gap-3 items-center p-4 cursor-pointer hover:bg-surface-light/40 transition-colors"
                   onClick={() => {
                     setExpandedAgent(isExpanded ? null : agent.address);
                     onSelectAgent?.(agent.address as `0x${string}`);
                   }}
                 >
+                  {/* Agent Name + Rank */}
                   <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
-                      style={{
-                        background:
-                          idx === 0
-                            ? "linear-gradient(135deg, #E6007A, #8B5CF6)"
-                            : "rgba(42, 32, 64, 0.6)",
-                        color: idx === 0 ? "#fff" : "var(--color-muted)",
-                      }}
-                    >
-                      #{idx + 1}
-                    </div>
+                    {isTopThree ? (
+                      <div className={`w-9 h-9 ${getMedalClass(idx)} text-xs`}>
+                        #{idx + 1}
+                      </div>
+                    ) : (
+                      <div
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
+                        style={{
+                          background: "rgba(34, 28, 56, 0.5)",
+                          color: "var(--color-muted)",
+                        }}
+                      >
+                        #{idx + 1}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm truncate">{agent.name}</p>
                         {selectedAgent === agent.address && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-primary/40 text-primary">
+                          <span
+                            className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
+                            style={{
+                              border: "1px solid rgba(230, 0, 122, 0.3)",
+                              color: "var(--color-primary)",
+                              background: "rgba(230, 0, 122, 0.06)",
+                            }}
+                          >
                             selected
                           </span>
                         )}
                         {agent.isSybilFlagged && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 shrink-0">
+                          <span
+                            className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold shrink-0"
+                            style={{
+                              background: "rgba(245, 158, 11, 0.08)",
+                              color: "#F59E0B",
+                              border: "1px solid rgba(245, 158, 11, 0.2)",
+                            }}
+                          >
                             sybil risk
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-muted truncate">
+                      <p className="text-[11px] text-muted truncate mt-0.5">
                         {agent.description.slice(0, 60)}...
                       </p>
                     </div>
                   </div>
 
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-purple">
+                  {/* LLM Relevancy */}
+                  <div className="flex flex-col items-center gap-1">
+                    <p className="text-sm font-bold text-purple value-highlight">
                       {agent.llmRelevancy}
-                      <span className="text-xs text-muted font-normal">/100</span>
+                      <span className="text-[10px] text-muted font-normal">/100</span>
                     </p>
-                    <div className="progress-bar mt-1.5 mx-auto w-20">
+                    <div className="progress-bar w-16">
                       <div
                         className="progress-bar-fill"
                         style={{
@@ -234,15 +304,16 @@ export default function DiscoveryTab({
                     </div>
                   </div>
 
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <p className="text-sm font-bold text-accent">
+                  {/* On-Chain Trust */}
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="flex items-center gap-1">
+                      <p className="text-sm font-bold text-accent value-highlight">
                         {agent.onChainTrust}
-                        <span className="text-xs text-muted font-normal">/100</span>
+                        <span className="text-[10px] text-muted font-normal">/100</span>
                       </p>
                       <Zap className="w-3 h-3 text-accent" />
                     </div>
-                    <div className="progress-bar mt-1.5 mx-auto w-20">
+                    <div className="progress-bar w-16">
                       <div
                         className="progress-bar-fill"
                         style={{
@@ -253,11 +324,12 @@ export default function DiscoveryTab({
                     </div>
                   </div>
 
-                  <div className="text-center flex items-center justify-center gap-2">
-                    <div>
-                      <p className="text-lg font-bold gradient-text">{agent.valenceScore}</p>
-                      <p className="text-[10px] text-muted">BLENDED</p>
-                    </div>
+                  {/* Valence Score */}
+                  <div className="flex items-center justify-center gap-2">
+                    <ScoreRing
+                      value={agent.valenceScore}
+                      color={agent.valenceScore > 70 ? "#00E6A0" : agent.valenceScore > 40 ? "#8B5CF6" : "#F59E0B"}
+                    />
                     {isExpanded ? (
                       <ChevronUp className="w-4 h-4 text-muted" />
                     ) : (
@@ -266,66 +338,69 @@ export default function DiscoveryTab({
                   </div>
                 </div>
 
+                {/* Expanded Detail */}
                 <AnimatePresence>
                   {isExpanded && (
                     <motion.div
-                      className="border-t border-border px-4 py-4"
+                      className="border-t px-4 py-4"
+                      style={{ borderColor: "var(--color-border)" }}
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                     >
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-5">
                         <div>
-                          <p className="text-xs text-muted mb-1">Address</p>
+                          <p className="text-[10px] text-muted uppercase tracking-wider font-medium mb-1">Address</p>
                           <p className="font-mono text-xs text-foreground">
                             {truncateAddress(agent.address as `0x${string}`)}
                           </p>
-                          <p className="text-xs text-muted mt-3 mb-1">Description</p>
+                          <p className="text-[10px] text-muted uppercase tracking-wider font-medium mt-4 mb-1">Description</p>
                           <p className="text-xs text-foreground/80 leading-relaxed">
                             {agent.description}
                           </p>
                           {agent.reasoning && (
                             <>
-                              <p className="text-xs text-muted mt-3 mb-1">Gemini reasoning</p>
+                              <p className="text-[10px] text-muted uppercase tracking-wider font-medium mt-4 mb-1">Gemini reasoning</p>
                               <p className="text-xs text-foreground/70 italic leading-relaxed">
                                 &ldquo;{agent.reasoning}&rdquo;
                               </p>
                             </>
                           )}
-                          <p className="text-xs text-muted mt-3 mb-1">Raw Reputation (from PVM)</p>
-                          <p className="text-sm font-mono font-bold text-accent">
+                          <p className="text-[10px] text-muted uppercase tracking-wider font-medium mt-4 mb-1">Raw Reputation (from PVM)</p>
+                          <p className="text-base font-mono font-bold text-accent value-highlight">
                             {agent.reputation}
                           </p>
                           <button
                             type="button"
-                            className="mt-3 text-xs underline text-primary"
+                            className="mt-3 text-xs font-medium text-primary hover:text-primary-light transition-colors flex items-center gap-1"
                             onClick={(event) => {
                               event.stopPropagation();
                               onSelectAgent?.(agent.address as `0x${string}`);
                               onOpenTrustGraph?.();
                             }}
                           >
+                            <ExternalLink className="w-3 h-3" />
                             Highlight in Trust Graph
                           </button>
                         </div>
 
                         <div>
-                          <p className="text-xs text-muted mb-2">
-                            <TrendingUp className="w-3 h-3 inline mr-1" />
+                          <p className="text-[10px] text-muted uppercase tracking-wider font-medium mb-2 flex items-center gap-1">
+                            <TrendingUp className="w-3 h-3" />
                             Interaction History ({agent.interactions.length})
                           </p>
-                          <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                          <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
                             {agent.interactions.length === 0 ? (
-                              <p className="text-xs text-muted/50 italic">
+                              <p className="text-xs text-muted/40 italic">
                                 No recorded interactions
                               </p>
                             ) : (
                               agent.interactions.map((ix, i) => (
                                 <div
                                   key={i}
-                                  className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg"
+                                  className="interaction-badge"
                                   style={{
-                                    background: `${interactionTypeColor(ix.interactionType)}10`,
+                                    background: `${interactionTypeColor(ix.interactionType)}08`,
                                     borderLeft: `2px solid ${interactionTypeColor(ix.interactionType)}`,
                                   }}
                                 >
@@ -333,7 +408,7 @@ export default function DiscoveryTab({
                                     className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                                     style={{ background: interactionTypeColor(ix.interactionType) }}
                                   />
-                                  <span className="font-medium">
+                                  <span className="font-medium text-xs">
                                     {interactionTypeLabel(ix.interactionType)}
                                   </span>
                                   <span className="text-muted ml-auto font-mono text-[10px]">

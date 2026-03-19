@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Unlock, Search, X, Zap, ArrowRight } from "lucide-react";
+import { Lock, Unlock, Search, X, Zap, ArrowRight, Check, CreditCard, Shield, Cpu } from "lucide-react";
 import { useAccount } from "wagmi";
 import {
   useSearchWithPayment,
@@ -13,6 +13,34 @@ import { getMicropaymentFee } from "@/lib/contract";
 
 interface GatekeeperTabProps {
   onSearchComplete: (query: string, results: SearchResult[], meta?: SearchMeta) => void;
+}
+
+const STEPS = [
+  { key: "payment", label: "Payment", icon: CreditCard },
+  { key: "confirming", label: "Confirming", icon: Shield },
+  { key: "verifying", label: "Verified", icon: Check },
+  { key: "searching", label: "Searching", icon: Cpu },
+];
+
+function getStepState(status: string, stepKey: string): "inactive" | "active" | "completed" {
+  const order = ["payment", "confirming", "verifying", "searching"];
+  const statusMap: Record<string, string> = {
+    idle: "",
+    switching_chain: "payment",
+    awaiting_payment: "payment",
+    confirming: "confirming",
+    verifying: "verifying",
+    searching: "searching",
+    done: "done",
+    error: "",
+  };
+  const currentStep = statusMap[status] || "";
+  const stepIdx = order.indexOf(stepKey);
+  const currentIdx = currentStep === "done" ? order.length : order.indexOf(currentStep);
+  if (currentIdx < 0) return "inactive";
+  if (stepIdx < currentIdx) return "completed";
+  if (stepIdx === currentIdx) return "active";
+  return "inactive";
 }
 
 export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) {
@@ -40,13 +68,13 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
     };
   }, []);
 
-  // Mirror hook status into logs — same messages as before
+  // Mirror hook status into logs
   useEffect(() => {
     if (status === "switching_chain") {
       addLog("Switching to Polkadot EVM network...");
     } else if (status === "awaiting_payment") {
       addLog(`Initiating x402 micropayment on Polkadot EVM...`);
-      addLog("HTTP 402 — Payment Required. Awaiting wallet confirmation.");
+      addLog("HTTP 402 -- Payment Required. Awaiting wallet confirmation.");
     } else if (status === "confirming") {
       if (txHash) {
         addLog(`Transaction submitted: ${txHash.slice(0, 16)}...`);
@@ -57,9 +85,9 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
       addLog("Payment verified: 0.001 PAS deducted.");
       addLog("x-l402-tx-hash header injected into request.");
     } else if (status === "searching") {
-      addLog("GATE UNLOCKED — Agent authorized for discovery.");
+      addLog("GATE UNLOCKED -- Agent authorized for discovery.");
       addLog(`Searching for: "${query}" with valid x-l402-tx-hash header...`);
-      addLog("402 Gate PASSED — Agent has valid payment proof.");
+      addLog("402 Gate PASSED -- Agent has valid payment proof.");
       addLog("Forwarding to Discovery Engine...");
     } else if (status === "done") {
       addLog("Discovery results received. Switching to Leaderboard tab.");
@@ -106,7 +134,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
     setUnlocked(false);
     setShowModal(true);
     addLog(`Search attempt blocked: "${query}"`);
-    addLog("HTTP 402 — Payment Required. No valid x-l402-tx-hash header.");
+    addLog("HTTP 402 -- Payment Required. No valid x-l402-tx-hash header.");
   };
 
   const handlePay = async () => {
@@ -130,6 +158,8 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
     searching: "Processing...",
   };
 
+  const showStepper = isProcessing || status === "done";
+
   // Auto-scroll logs
   useEffect(() => {
     const el = document.getElementById("gatekeeper-logs");
@@ -137,14 +167,14 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
   }, [logs]);
 
   return (
-    <div className="flex flex-col gap-6 h-full">
-      {/* Hero Section — unchanged */}
-      <div className="text-center py-6">
+    <div className="flex flex-col gap-5 h-full">
+      {/* Hero Section */}
+      <div className="text-center py-5">
         <motion.div
-          className="inline-flex items-center gap-2 mb-4 px-4 py-2 rounded-full text-xs font-medium"
+          className="badge inline-flex mb-4"
           style={{
-            border: "1px solid rgba(230, 0, 122, 0.3)",
-            background: "rgba(230, 0, 122, 0.08)",
+            borderColor: "rgba(230, 0, 122, 0.25)",
+            background: "rgba(230, 0, 122, 0.06)",
             color: "#E6007A",
           }}
           initial={{ opacity: 0, y: -10 }}
@@ -153,17 +183,17 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           <Zap className="w-3 h-3" />
           x402 Payment Protocol
         </motion.div>
-        <h2 className="text-2xl font-bold mb-2">The Gatekeeper</h2>
-        <p className="text-muted text-sm max-w-md mx-auto">
+        <h2 className="text-2xl font-bold mb-2 tracking-tight">The Gatekeeper</h2>
+        <p className="text-muted text-sm max-w-md mx-auto leading-relaxed">
           Every API call on the Valence network requires a micropayment on
           Polkadot&apos;s EVM layer. No payment, no access.
         </p>
       </div>
 
-      {/* Search Bar — unchanged */}
+      {/* Search Bar */}
       <div className="max-w-xl mx-auto w-full">
         <div
-          className={`glass-card flex items-center gap-3 px-4 py-3 transition-all ${
+          className={`glass-card-premium flex items-center gap-3 px-5 py-3.5 transition-all ${
             unlocked ? "border-accent/40" : ""
           }`}
         >
@@ -178,7 +208,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           </motion.div>
           <input
             type="text"
-            className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted/60"
+            className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted/50"
             placeholder="Find me a DeFi agent for yield optimization..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -187,12 +217,15 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           <button
             onClick={handleSearch}
             disabled={isProcessing}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-60"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60"
             style={{
               background: unlocked
                 ? "linear-gradient(135deg, #00E6A0, #00B880)"
                 : "linear-gradient(135deg, #E6007A, #8B5CF6)",
               color: "#fff",
+              boxShadow: unlocked
+                ? "0 4px 20px rgba(0, 230, 160, 0.2)"
+                : "0 4px 20px rgba(230, 0, 122, 0.2)",
             }}
           >
             <Search className="w-4 h-4" />
@@ -200,22 +233,22 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           </button>
         </div>
 
-        {/* Unlocked Success Banner — unchanged */}
+        {/* Unlocked Success Banner */}
         <AnimatePresence>
           {unlocked && txHash && (
             <motion.div
               className="mt-3 flex items-center gap-3 px-4 py-3 rounded-xl text-xs"
               style={{
-                background: "rgba(0, 230, 160, 0.08)",
-                border: "1px solid rgba(0, 230, 160, 0.2)",
+                background: "rgba(0, 230, 160, 0.06)",
+                border: "1px solid rgba(0, 230, 160, 0.15)",
               }}
               initial={{ opacity: 0, y: -10, height: 0 }}
               animate={{ opacity: 1, y: 0, height: "auto" }}
               exit={{ opacity: 0 }}
             >
               <span className="w-2 h-2 rounded-full bg-accent pulse-dot" />
-              <span className="text-accent font-medium">Gate Unlocked</span>
-              <span className="text-muted font-mono truncate flex-1">
+              <span className="text-accent font-semibold">Gate Unlocked</span>
+              <span className="text-muted font-mono truncate flex-1 text-[11px]">
                 tx: {txHash.slice(0, 20)}...{txHash.slice(-8)}
               </span>
               <a
@@ -237,39 +270,51 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
         </AnimatePresence>
       </div>
 
-      {/* Architecture Flow — unchanged */}
+      {/* Architecture Flow */}
       <div className="max-w-xl mx-auto w-full">
-        <div className="flex items-center justify-center gap-2 text-xs text-muted py-4">
-          <div className="glass-card px-3 py-2 text-center">
-            <p className="font-medium text-foreground text-[11px]">Agent</p>
-            <p className="text-[10px]">Sends query</p>
-          </div>
-          <ArrowRight className="w-3 h-3 text-primary" />
-          <div className="glass-card px-3 py-2 text-center border-primary/30">
-            <p className="font-medium text-primary text-[11px]">x402 Gate</p>
-            <p className="text-[10px]">{micropaymentFee} PAS</p>
-          </div>
-          <ArrowRight className="w-3 h-3 text-accent" />
-          <div className="glass-card px-3 py-2 text-center border-accent/30">
-            <p className="font-medium text-accent text-[11px]">Valence API</p>
-            <p className="text-[10px]">Discovery</p>
-          </div>
+        <div className="flex items-center justify-center gap-2 text-xs text-muted py-3">
+          {[
+            { label: "Agent", sub: "Sends query", color: "var(--color-foreground)" },
+            null,
+            { label: "x402 Gate", sub: `${micropaymentFee} PAS`, color: "var(--color-primary)" },
+            null,
+            { label: "Valence API", sub: "Discovery", color: "var(--color-accent)" },
+          ].map((item, i) =>
+            item === null ? (
+              <ArrowRight key={`arrow-${i}`} className="w-3.5 h-3.5 text-muted flow-dot" />
+            ) : (
+              <div
+                key={item.label}
+                className="glass-card px-4 py-2.5 text-center"
+                style={{
+                  borderColor: item.color === "var(--color-foreground)" ? undefined : `${item.color}30`,
+                }}
+              >
+                <p className="font-semibold text-[11px]" style={{ color: item.color }}>
+                  {item.label}
+                </p>
+                <p className="text-[10px] text-muted mt-0.5">{item.sub}</p>
+              </div>
+            )
+          )}
         </div>
       </div>
 
-      {/* System Logs Terminal — unchanged */}
+      {/* System Logs Terminal */}
       <div className="flex-1 min-h-[160px]">
         <div className="flex items-center gap-2 mb-2">
           <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-negative/60" />
-            <div className="w-2.5 h-2.5 rounded-full bg-trust-low/60" />
-            <div className="w-2.5 h-2.5 rounded-full bg-accent/60" />
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(239, 68, 68, 0.5)" }} />
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(245, 158, 11, 0.5)" }} />
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(0, 230, 160, 0.5)" }} />
           </div>
-          <span className="text-xs text-muted font-mono">system_logs</span>
+          <span className="text-[11px] text-muted" style={{ fontFamily: "var(--font-mono), monospace" }}>
+            system_logs
+          </span>
         </div>
         <div id="gatekeeper-logs" className="terminal h-[180px]">
           {logs.length === 0 ? (
-            <p className="text-muted/40 italic">
+            <p className="text-muted/30 italic">
               System logs will appear here...
             </p>
           ) : (
@@ -287,7 +332,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
         </div>
       </div>
 
-      {/* 402 Payment Modal — same UI, real payment button */}
+      {/* 402 Payment Modal */}
       <AnimatePresence>
         {showModal && (
           <motion.div
@@ -298,42 +343,73 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           >
             <motion.div
               className="modal-content"
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
             >
+              {/* Modal Header */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    className="w-11 h-11 rounded-xl flex items-center justify-center"
                     style={{
                       background: "linear-gradient(135deg, #E6007A, #8B5CF6)",
+                      boxShadow: "0 0 24px rgba(230, 0, 122, 0.2)",
                     }}
                   >
                     <Lock className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg">402 Payment Required</h3>
-                    <p className="text-xs text-muted">Valence Protocol Gateway</p>
+                    <h3 className="font-semibold text-lg tracking-tight">402 Payment Required</h3>
+                    <p className="text-[11px] text-muted">Valence Protocol Gateway</p>
                   </div>
                 </div>
                 <button
                   onClick={() => { setShowModal(false); reset(); }}
                   disabled={isProcessing}
-                  className="text-muted hover:text-foreground transition-colors disabled:opacity-30"
+                  className="text-muted hover:text-foreground transition-colors disabled:opacity-30 p-1"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
+              {/* Progress Stepper */}
+              {showStepper && (
+                <div className="stepper mb-6">
+                  {STEPS.map((step, i) => {
+                    const state = getStepState(status, step.key);
+                    const StepIcon = step.icon;
+                    return (
+                      <div key={step.key} className="contents">
+                        <div className={`stepper-step ${state}`}>
+                          <div className="stepper-dot">
+                            {state === "completed" ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <StepIcon className="w-3.5 h-3.5" />
+                            )}
+                          </div>
+                          <span className="stepper-label">{step.label}</span>
+                        </div>
+                        {i < STEPS.length - 1 && (
+                          <div className={`stepper-line ${state === "completed" ? "completed" : ""}`} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Fee Info */}
               <div
-                className="rounded-xl p-4 mb-6"
+                className="rounded-xl p-4 mb-5"
                 style={{
-                  background: "rgba(230, 0, 122, 0.06)",
-                  border: "1px solid rgba(230, 0, 122, 0.15)",
+                  background: "rgba(230, 0, 122, 0.04)",
+                  border: "1px solid rgba(230, 0, 122, 0.12)",
                 }}
               >
-                <p className="text-sm text-muted mb-3">
+                <p className="text-sm text-muted mb-3 leading-relaxed">
                   This discovery query requires a micropayment to prevent spam
                   and establish economic stake.
                 </p>
@@ -355,9 +431,9 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
                 )}
               </div>
 
-              {/* Live tx hash while confirming — replaces the typewriter effect */}
+              {/* Live tx hash while confirming */}
               {txHash && (
-                <div className="rounded-xl p-3 mb-4 bg-surface font-mono text-xs text-accent">
+                <div className="rounded-xl p-3 mb-4 code-block text-xs text-accent">
                   <p className="break-all">
                     <span className="text-muted">tx_hash: </span>
                     {txHash}
@@ -391,11 +467,14 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
               <button
                 onClick={handlePay}
                 disabled={isProcessing || !isConnected}
-                className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all disabled:opacity-60"
+                className="w-full py-3.5 rounded-xl font-semibold text-sm text-white transition-all disabled:opacity-60"
                 style={{
                   background: isProcessing
-                    ? "rgba(139, 92, 246, 0.3)"
+                    ? "rgba(139, 92, 246, 0.25)"
                     : "linear-gradient(135deg, #E6007A, #8B5CF6)",
+                  boxShadow: isProcessing
+                    ? "none"
+                    : "0 4px 24px rgba(230, 0, 122, 0.2)",
                 }}
               >
                 {!isConnected ? (
@@ -407,7 +486,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
                       transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
                       className="inline-block"
                     >
-                      ⟳
+                      &#10227;
                     </motion.span>
                     {processingLabel[status] ?? "Processing..."}
                   </span>
@@ -418,7 +497,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
                 )}
               </button>
 
-              <p className="text-[10px] text-muted text-center mt-3">
+              <p className="text-[10px] text-muted text-center mt-3 leading-relaxed">
                 This sends a real on-chain x402 payment via your connected wallet.
                 The interaction is recorded on-chain and contributes to the trust graph.
               </p>
