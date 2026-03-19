@@ -1,26 +1,214 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: #0a0612;
+  --color-foreground: #e8e0f0;
+  --color-surface: #110d1d;
+  --color-surface-light: #1a1429;
+  --color-border: #2a2040;
+  --color-border-glow: rgba(230, 0, 122, 0.3);
+  --color-primary: #E6007A;
+  --color-primary-light: #FF2D95;
+  --color-accent: #00E6A0;
+  --color-accent-dim: rgba(0, 230, 160, 0.15);
+  --color-trust-high: #00E6A0;
+  --color-trust-mid: #6366F1;
+  --color-trust-low: #F59E0B;
+  --color-negative: #EF4444;
+  --color-purple: #8B5CF6;
+  --color-purple-dim: rgba(139, 92, 246, 0.15);
+  --color-muted: #8a7fa8;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* ---- Base ---- */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+/* ---- Glassmorphism Card ---- */
+.glass-card {
+  background: linear-gradient(135deg, rgba(17, 13, 29, 0.8), rgba(26, 20, 41, 0.6));
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.glass-card:hover {
+  border-color: var(--color-border-glow);
+  box-shadow: 0 0 30px rgba(230, 0, 122, 0.08);
+}
+
+/* ---- Glow Borders ---- */
+.glow-border {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.glow-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-purple), var(--color-accent));
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.4;
+  transition: opacity 0.3s ease;
+}
+.glow-border:hover::before {
+  opacity: 0.8;
+}
+
+/* ---- Animated Gradient Text ---- */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-purple), var(--color-accent));
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 4s ease-in-out infinite;
+}
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ---- Tab Button ---- */
+.tab-btn {
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+}
+.tab-btn:hover {
+  color: var(--color-foreground);
+  background: rgba(139, 92, 246, 0.08);
+}
+.tab-btn.active {
+  color: var(--color-foreground);
+  background: rgba(230, 0, 122, 0.12);
+  border-color: rgba(230, 0, 122, 0.3);
+  box-shadow: 0 0 20px rgba(230, 0, 122, 0.1);
+}
+
+/* ---- Terminal / Logs ---- */
+.terminal {
+  background: #080510;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--color-accent);
+  overflow-y: auto;
+  line-height: 1.6;
+}
+.terminal .log-line::before {
+  content: '> ';
+  color: var(--color-muted);
+}
+
+/* ---- Modal Overlay ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 6, 18, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-content {
+  background: linear-gradient(135deg, #1a1429, #110d1d);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 32px;
+  max-width: 460px;
+  width: 90%;
+  box-shadow: 0 0 60px rgba(230, 0, 122, 0.15), 0 0 120px rgba(139, 92, 246, 0.05);
+}
+
+/* ---- Progress Bar ---- */
+.progress-bar {
+  height: 6px;
+  background: var(--color-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---- Padlock Anim ---- */
+@keyframes unlock-shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-10deg); }
+  75% { transform: rotate(10deg); }
+}
+.padlock-unlocking {
+  animation: unlock-shake 0.4s ease-in-out;
+}
+
+/* ---- Pulse ---- */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 230, 160, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(0, 230, 160, 0); }
+}
+.pulse-dot {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ---- Typewriter ---- */
+@keyframes typewriter-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.typewriter-cursor::after {
+  content: '|';
+  animation: typewriter-cursor 0.8s step-end infinite;
+  color: var(--color-accent);
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
+}
+
+/* ---- Network Badge ---- */
+.network-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 230, 160, 0.3);
+  background: rgba(0, 230, 160, 0.08);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-accent);
 }
