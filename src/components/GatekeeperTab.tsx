@@ -3,71 +3,102 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Unlock, Search, X, Zap, ArrowRight } from "lucide-react";
+import { useAccount } from "wagmi";
+import { useSearchWithPayment } from "@/hooks/useSearchWithPayment.wagmi";
 
 interface GatekeeperTabProps {
-  onSearchComplete: () => void;
+  onSearchComplete: (query: string) => void;
 }
 
 export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) {
   const [query, setQuery] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
-  const [simulating, setSimulating] = useState(false);
-  const [txHash, setTxHash] = useState("");
   const [logs, setLogs] = useState<string[]>([]);
-  const [typingHash, setTypingHash] = useState("");
+
+  const { address, isConnected } = useAccount();
+  const { search, status, txHash, error, reset } = useSearchWithPayment();
 
   const addLog = useCallback((msg: string) => {
     setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
   }, []);
 
+  // Mirror hook status into logs — same messages as before
+  useEffect(() => {
+    if (status === "switching_chain") {
+      addLog("Switching to Polkadot EVM network...");
+    } else if (status === "awaiting_payment") {
+      addLog(`Initiating x402 micropayment on Polkadot EVM...`);
+      addLog("HTTP 402 — Payment Required. Awaiting wallet confirmation.");
+    } else if (status === "confirming") {
+      if (txHash) {
+        addLog(`Transaction submitted: ${txHash.slice(0, 16)}...`);
+        addLog("Waiting for block confirmation on Polkadot EVM Testnet...");
+      }
+    } else if (status === "verifying") {
+      addLog("Block confirmed on Polkadot EVM Testnet!");
+      addLog("Payment verified: 0.001 PAS deducted.");
+      addLog("x-l402-tx-hash header injected into request.");
+    } else if (status === "searching") {
+      addLog("GATE UNLOCKED — Agent authorized for discovery.");
+      addLog(`Searching for: "${query}" with valid x-l402-tx-hash header...`);
+      addLog("402 Gate PASSED — Agent has valid payment proof.");
+      addLog("Forwarding to Discovery Engine...");
+    } else if (status === "done") {
+      addLog("Discovery results received. Switching to Leaderboard tab.");
+      setUnlocked(true);
+      setShowModal(false);
+      setTimeout(() => onSearchComplete(query), 800);
+    } else if (status === "error" && error) {
+      addLog(`Error: ${error}`);
+      setShowModal(false);
+    }
+  }, [status, txHash, error]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSearch = () => {
     if (!query.trim()) return;
+
+    if (!isConnected) {
+      addLog("No wallet connected. Please connect your wallet first.");
+      return;
+    }
+
     if (unlocked) {
+      // Already paid — go straight to discovery
       addLog(`Searching for: "${query}" with valid x-l402-tx-hash header...`);
       addLog("402 Gate PASSED — Agent has valid payment proof.");
       addLog("Forwarding to Discovery Engine...");
       setTimeout(() => {
         addLog("Discovery results received. Switching to Leaderboard tab.");
-        onSearchComplete();
+        onSearchComplete(query);
       }, 1200);
       return;
     }
+
     setShowModal(true);
     addLog(`Search attempt blocked: "${query}"`);
     addLog("HTTP 402 — Payment Required. No valid x-l402-tx-hash header.");
   };
 
-  const simulatePayment = async () => {
-    setSimulating(true);
-    addLog("Initiating x402 micropayment on Polkadot EVM...");
+  const handlePay = async () => {
+    if (!query.trim()) return;
+    await search(query);
+  };
 
-    // Generate a fake tx hash with a typewriter effect
-    const fakeTxHash =
-      "0x" +
-      Array.from({ length: 64 }, () =>
-        Math.floor(Math.random() * 16).toString(16)
-      ).join("");
+  const isProcessing = [
+    "switching_chain",
+    "awaiting_payment",
+    "confirming",
+    "verifying",
+    "searching",
+  ].includes(status);
 
-    // Typewriter effect for the tx hash
-    for (let i = 0; i <= fakeTxHash.length; i++) {
-      await new Promise((r) => setTimeout(r, 25));
-      setTypingHash(fakeTxHash.slice(0, i));
-    }
-
-    addLog(`Transaction submitted: ${fakeTxHash.slice(0, 16)}...`);
-    await new Promise((r) => setTimeout(r, 600));
-    addLog("Block confirmed on Polkadot EVM Testnet!");
-    await new Promise((r) => setTimeout(r, 400));
-    addLog("Payment verified: 0.001 PAS deducted.");
-    await new Promise((r) => setTimeout(r, 300));
-    addLog("x-l402-tx-hash header injected into request.");
-
-    setTxHash(fakeTxHash);
-    setSimulating(false);
-    setShowModal(false);
-    setUnlocked(true);
-    addLog("GATE UNLOCKED — Agent authorized for discovery.");
+  const processingLabel: Record<string, string> = {
+    switching_chain: "Switching Network...",
+    awaiting_payment: "Confirm in Wallet...",
+    confirming: "Confirming on Chain...",
+    verifying: "Verifying Payment...",
+    searching: "Processing...",
   };
 
   // Auto-scroll logs
@@ -78,7 +109,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
 
   return (
     <div className="flex flex-col gap-6 h-full">
-      {/* Hero Section */}
+      {/* Hero Section — unchanged */}
       <div className="text-center py-6">
         <motion.div
           className="inline-flex items-center gap-2 mb-4 px-4 py-2 rounded-full text-xs font-medium"
@@ -93,16 +124,14 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           <Zap className="w-3 h-3" />
           x402 Payment Protocol
         </motion.div>
-        <h2 className="text-2xl font-bold mb-2">
-          The Gatekeeper
-        </h2>
+        <h2 className="text-2xl font-bold mb-2">The Gatekeeper</h2>
         <p className="text-muted text-sm max-w-md mx-auto">
           Every API call on the Valence network requires a micropayment on
           Polkadot&apos;s EVM layer. No payment, no access.
         </p>
       </div>
 
-      {/* Search Bar */}
+      {/* Search Bar — unchanged */}
       <div className="max-w-xl mx-auto w-full">
         <div
           className={`glass-card flex items-center gap-3 px-4 py-3 transition-all ${
@@ -110,7 +139,6 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           }`}
         >
           <motion.div
-            className={unlocked ? "padlock-unlocking" : ""}
             animate={unlocked ? { rotate: [0, -15, 15, 0] } : {}}
           >
             {unlocked ? (
@@ -129,7 +157,8 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           />
           <button
             onClick={handleSearch}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+            disabled={isProcessing}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-60"
             style={{
               background: unlocked
                 ? "linear-gradient(135deg, #00E6A0, #00B880)"
@@ -142,7 +171,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           </button>
         </div>
 
-        {/* Unlocked Success Banner */}
+        {/* Unlocked Success Banner — unchanged */}
         <AnimatePresence>
           {unlocked && txHash && (
             <motion.div
@@ -160,12 +189,20 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
               <span className="text-muted font-mono truncate flex-1">
                 tx: {txHash.slice(0, 20)}...{txHash.slice(-8)}
               </span>
+              <a
+                href={`https://blockscout-testnet.polkadot.io/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline ml-2 shrink-0"
+              >
+                view
+              </a>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Architecture Flow Diagram */}
+      {/* Architecture Flow — unchanged */}
       <div className="max-w-xl mx-auto w-full">
         <div className="flex items-center justify-center gap-2 text-xs text-muted py-4">
           <div className="glass-card px-3 py-2 text-center">
@@ -185,7 +222,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
         </div>
       </div>
 
-      {/* System Logs Terminal */}
+      {/* System Logs Terminal — unchanged */}
       <div className="flex-1 min-h-[160px]">
         <div className="flex items-center gap-2 mb-2">
           <div className="flex gap-1.5">
@@ -195,10 +232,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           </div>
           <span className="text-xs text-muted font-mono">system_logs</span>
         </div>
-        <div
-          id="gatekeeper-logs"
-          className="terminal h-[180px]"
-        >
+        <div id="gatekeeper-logs" className="terminal h-[180px]">
           {logs.length === 0 ? (
             <p className="text-muted/40 italic">
               System logs will appear here...
@@ -218,7 +252,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
         </div>
       </div>
 
-      {/* 402 Payment Modal */}
+      {/* 402 Payment Modal — same UI, real payment button */}
       <AnimatePresence>
         {showModal && (
           <motion.div
@@ -249,8 +283,9 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
                   </div>
                 </div>
                 <button
-                  onClick={() => setShowModal(false)}
-                  className="text-muted hover:text-foreground transition-colors"
+                  onClick={() => { setShowModal(false); reset(); }}
+                  disabled={isProcessing}
+                  className="text-muted hover:text-foreground transition-colors disabled:opacity-30"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -269,58 +304,70 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
                 </p>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted">Fee:</span>
-                  <span className="text-2xl font-bold gradient-text">
-                    0.001 PAS
-                  </span>
+                  <span className="text-2xl font-bold gradient-text">0.001 PAS</span>
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-xs text-muted">Network:</span>
                   <span className="text-xs text-accent">Polkadot EVM Testnet</span>
                 </div>
+                {address && (
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-muted">From:</span>
+                    <span className="text-xs font-mono text-foreground">
+                      {address.slice(0, 10)}...{address.slice(-6)}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {/* Typing Tx Hash */}
-              {simulating && typingHash && (
+              {/* Live tx hash while confirming — replaces the typewriter effect */}
+              {txHash && (
                 <div className="rounded-xl p-3 mb-4 bg-surface font-mono text-xs break-all text-accent">
                   <span className="text-muted">tx_hash: </span>
-                  {typingHash}
-                  <span className="typewriter-cursor" />
+                  {txHash}
+                </div>
+              )}
+
+              {/* Error state */}
+              {status === "error" && error && (
+                <div className="rounded-xl p-3 mb-4 text-xs text-red-400 bg-red-500/10 border border-red-500/20">
+                  {error}
                 </div>
               )}
 
               <button
-                onClick={simulatePayment}
-                disabled={simulating}
+                onClick={handlePay}
+                disabled={isProcessing || !isConnected}
                 className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all disabled:opacity-60"
                 style={{
-                  background: simulating
+                  background: isProcessing
                     ? "rgba(139, 92, 246, 0.3)"
                     : "linear-gradient(135deg, #E6007A, #8B5CF6)",
                 }}
               >
-                {simulating ? (
+                {!isConnected ? (
+                  "Connect wallet first"
+                ) : isProcessing ? (
                   <span className="flex items-center justify-center gap-2">
                     <motion.span
                       animate={{ rotate: 360 }}
-                      transition={{
-                        repeat: Infinity,
-                        duration: 1,
-                        ease: "linear",
-                      }}
+                      transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
                       className="inline-block"
                     >
                       ⟳
                     </motion.span>
-                    Processing Payment...
+                    {processingLabel[status] ?? "Processing..."}
                   </span>
+                ) : status === "error" ? (
+                  "Try Again"
                 ) : (
-                  "Simulate Agent Payment"
+                  "Pay 0.001 PAS to Unlock"
                 )}
               </button>
 
               <p className="text-[10px] text-muted text-center mt-3">
-                This simulates an on-chain x402 payment. In production, the
-                agent&apos;s wallet signs a real transaction.
+                This sends a real on-chain x402 payment via your connected wallet.
+                The interaction is recorded on-chain and contributes to the trust graph.
               </p>
             </motion.div>
           </motion.div>

@@ -21,6 +21,16 @@ import {
 
 type TabId = "gatekeeper" | "discovery" | "trustgraph" | "architecture";
 
+interface SearchResult {
+  address: string;
+  profile: string;
+  chainScore: number;
+  geminiScore: number;
+  finalScore: number;
+  reasoning: string;
+  isSybilFlagged: boolean;
+}
+
 const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "gatekeeper", label: "Gatekeeper", icon: Shield },
   { id: "discovery", label: "Discovery", icon: Search },
@@ -34,6 +44,7 @@ export default function Home() {
   const [interactions, setInteractions] = useState<AgentInteraction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[] | undefined>(undefined);
 
   // Fetch on-chain data
   const fetchData = useCallback(async () => {
@@ -80,10 +91,11 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
-  const handleSearchComplete = () => {
-    setSearchQuery("DeFi agent for yield optimization");
-    setActiveTab("discovery");
-  };
+  const handleSearchComplete = useCallback((query: string, results?: SearchResult[]) => {
+  setSearchQuery(query);
+  if (results) setSearchResults(results);
+  setActiveTab("discovery");
+  }, []);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -127,6 +139,7 @@ export default function Home() {
                 agents={agents}
                 loading={loading}
                 searchQuery={searchQuery}
+                searchResults={searchResults}
               />
             )}
             {activeTab === "trustgraph" && (

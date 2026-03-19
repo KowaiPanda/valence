@@ -1,0 +1,172 @@
+"use client";
+
+import { useState, useCallback } from "react";
+import {
+  useAccount,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useSwitchChain,
+} from "wagmi";
+import { parseEther } from "viem";
+import { SOLIDITY_ADDRESS, VALENCE_ABI, publicClient } from "@/lib/contract";
+import { polkadotTestnet } from "@/lib/wagmi.config";
+import type { Address } from "viem";
+
+export type SearchResult = {
+  address: string;
+  profile: string;
+  chainScore: number;
+  geminiScore: number;
+  finalScore: number;
+  reasoning: string;
+  isSybilFlagged: boolean;
+};
+
+export type SearchStatus =
+  | "idle"
+  | "switching_chain"
+  | "awaiting_payment"
+  | "confirming"
+  | "verifying"
+  | "searching"
+  | "done"
+  | "error";
+
+export const STATUS_LABELS: Record<SearchStatus, string> = {
+  idle: "",
+  switching_chain: "Switching to Polkadot network...",
+  awaiting_payment: "Confirm 0.001 PAS payment in your wallet...",
+  confirming: "Waiting for transaction confirmation...",
+  verifying: "Verifying payment on-chain...",
+  searching: "Scoring agents with Gemini + chain reputation...",
+  done: "Complete",
+  error: "Error",
+};
+
+export function useSearchWithPayment() {
+  const [status, setStatus] = useState<SearchStatus>("idle");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
+
+  const { address, chainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
+  const { writeContractAsync } = useWriteContract();
+
+  const search = useCallback(
+    async (query: string) => {
+      if (!address) {
+        setError("Connect your wallet first");
+        setStatus("error");
+        return;
+      }
+
+      setError(null);
+      setResults([]);
+      setTxHash(null);
+
+      try {
+        // ── 1. Ensure correct chain ──────────────────────────────────────
+        if (chainId !== polkadotTestnet.id) {
+          setStatus("switching_chain");
+          await switchChainAsync({ chainId: polkadotTestnet.id });
+        }
+
+        // ── 2. Fetch fee + owner from chain ──────────────────────────────
+        const [feeRaw, owner] = await Promise.all([
+          publicClient.readContract({
+            address: SOLIDITY_ADDRESS,
+            abi: VALENCE_ABI,
+            functionName: "micropaymentFee",
+          }),
+          publicClient.readContract({
+            address: SOLIDITY_ADDRESS,
+            abi: VALENCE_ABI,
+            functionName: "owner",
+          }),
+        ]);
+
+        // ── 3. Send recordInteraction(owner, 1) with fee ─────────────────
+        // Type 1 = x402 payment — goes on the reputation ledger
+        setStatus("awaiting_payment");
+
+        const hash = await writeContractAsync({
+          address: SOLIDITY_ADDRESS,
+          abi: VALENCE_ABI,
+          functionName: "recordInteraction",
+          args: [owner as Address, 1],
+          value: feeRaw as bigint,
+        });
+
+        setTxHash(hash);
+        setStatus("confirming");
+
+        // ── 4. Wait for on-chain confirmation ────────────────────────────
+        await publicClient.waitForTransactionReceipt({ hash });
+
+        // ── 5. Verify server-side + get search pass ──────────────────────
+        setStatus("verifying");
+
+        const verifyRes = await fetch("/api/verify-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ txHash: hash, address }),
+        });
+
+        if (!verifyRes.ok) {
+          const { error: msg } = await verifyRes.json();
+          throw new Error(msg ?? "Payment verification failed");
+        }
+
+        const { token } = await verifyRes.json();
+
+        // ── 6. Run semantic + chain search ───────────────────────────────
+        setStatus("searching");
+
+        const searchRes = await fetch("/api/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, address, token }),
+        });
+
+        if (!searchRes.ok) {
+          const { error: msg } = await searchRes.json();
+          throw new Error(msg ?? "Search failed");
+        }
+
+        const { results: ranked } = await searchRes.json();
+        setResults(ranked);
+        setStatus("done");
+      } catch (err: unknown) {
+        // User rejected the wallet tx — friendly message
+        const msg =
+          err instanceof Error
+            ? err.message.includes("User rejected") ||
+              err.message.includes("user rejected")
+              ? "Transaction rejected in wallet"
+              : err.message
+            : "Something went wrong";
+        setError(msg);
+        setStatus("error");
+      }
+    },
+    [address, chainId, switchChainAsync, writeContractAsync]
+  );
+
+  const reset = useCallback(() => {
+    setStatus("idle");
+    setResults([]);
+    setError(null);
+    setTxHash(null);
+  }, []);
+
+  return {
+    search,
+    status,
+    results,
+    error,
+    txHash,
+    reset,
+    isConnected: !!address,
+  };
+}

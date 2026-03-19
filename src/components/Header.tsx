@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Shield, ExternalLink } from "lucide-react";
 import { SOLIDITY_ADDRESS, truncateAddress } from "@/lib/contract";
+import { ConnectWallet } from "@/components/ConnectWallet";
 
 export default function Header() {
   return (
@@ -43,6 +44,7 @@ export default function Header() {
         <div className="network-badge">
           <span className="w-2 h-2 rounded-full bg-accent pulse-dot" />
           <span>Polkadot EVM Testnet</span>
+          <ConnectWallet />
         </div>
       </div>
     </header>

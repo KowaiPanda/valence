@@ -1,6 +1,6 @@
 "use client";
 
-import { useState} from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown,
@@ -16,38 +16,36 @@ import {
   interactionTypeColor,
 } from "@/lib/contract";
 
+interface SearchResult {
+  address: string;
+  profile: string;
+  chainScore: number;
+  geminiScore: number;
+  finalScore: number;
+  reasoning: string;
+  isSybilFlagged: boolean;
+}
+
 interface DiscoveryTabProps {
   agents: AgentData[];
   loading: boolean;
   searchQuery: string;
+  searchResults?: SearchResult[];
 }
 
-/* ---- simulated LLM relevancy (deterministic from address + query) ---- */
-function computeLLMRelevancy(
-  agentAddr: string,
-  query: string,
-  desc: string
-): number {
+function computeLLMRelevancy(agentAddr: string, query: string, desc: string): number {
   if (!query.trim()) return 0;
   const qLower = query.toLowerCase();
   const dLower = desc.toLowerCase();
-
-  // basic keyword matching
   const qWords = qLower.split(/\s+/).filter((w) => w.length > 2);
   const matches = qWords.filter((w) => dLower.includes(w)).length;
   const baseScore = Math.min((matches / Math.max(qWords.length, 1)) * 100, 100);
-
-  // add some deterministic variance from address
   const seed = parseInt(agentAddr.slice(2, 8), 16);
-  const variance = (seed % 30) - 15; // -15 to +15
-
+  const variance = (seed % 30) - 15;
   return Math.max(0, Math.min(100, Math.round(baseScore + variance)));
 }
 
-function computeValenceScore(
-  llmRelevancy: number,
-  onChainTrust: number
-): number {
+function computeValenceScore(llmRelevancy: number, onChainTrust: number): number {
   return Math.round(llmRelevancy * 0.6 + onChainTrust * 0.4);
 }
 
@@ -55,40 +53,60 @@ export default function DiscoveryTab({
   agents,
   loading,
   searchQuery,
+  searchResults,
 }: DiscoveryTabProps) {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
 
-  // Compute scored agents
-  const scoredAgents = agents.map((agent) => {
-    const maxTrust = Math.max(...agents.map((a) => a.reputation), 1);
-    const onChainTrust = Math.round((agent.reputation / maxTrust) * 100);
-    const llmRelevancy = searchQuery
-      ? computeLLMRelevancy(agent.address, searchQuery, agent.description)
-      : Math.round(50 + (parseInt(agent.address.slice(4, 8), 16) % 50));
-    const valenceScore = computeValenceScore(llmRelevancy, onChainTrust);
+  useEffect(() => {
+    setExpandedAgent(null);
+  }, [searchResults, searchQuery]);
 
-    return { ...agent, onChainTrust, llmRelevancy, valenceScore };
-  });
+  const hasRealResults = searchResults && searchResults.length > 0;
 
-  const sorted = [...scoredAgents].sort(
-    (a, b) => b.valenceScore - a.valenceScore
-  );
+  const sorted = hasRealResults
+    ? searchResults.map((r) => ({
+        address: r.address,
+        name:
+          agents.find((a) => a.address.toLowerCase() === r.address.toLowerCase())?.name ??
+          truncateAddress(r.address as `0x${string}`),
+        description: r.profile,
+        reputation: r.chainScore,
+        interactions:
+          agents.find((a) => a.address.toLowerCase() === r.address.toLowerCase())
+            ?.interactions ?? [],
+        onChainTrust: Math.min(100, Math.round(r.chainScore / 10)),
+        llmRelevancy: Math.round(r.geminiScore * 100),
+        valenceScore: Math.round(r.finalScore * 100),
+        reasoning: r.reasoning,
+        isSybilFlagged: r.isSybilFlagged,
+      }))
+    : [...agents]
+        .map((agent) => {
+          const maxTrust = Math.max(...agents.map((a) => a.reputation), 1);
+          const onChainTrust = Math.round((agent.reputation / maxTrust) * 100);
+          const llmRelevancy = searchQuery
+            ? computeLLMRelevancy(agent.address, searchQuery, agent.description)
+            : Math.round(50 + (parseInt(agent.address.slice(4, 8), 16) % 50));
+          const valenceScore = computeValenceScore(llmRelevancy, onChainTrust);
+          return { ...agent, onChainTrust, llmRelevancy, valenceScore, reasoning: "", isSybilFlagged: false };
+        })
+        .sort((a, b) => b.valenceScore - a.valenceScore);
 
   return (
     <div className="flex flex-col gap-4 h-full">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold">
-            Discovery Leaderboard
-          </h2>
+          <h2 className="text-xl font-bold">Discovery Leaderboard</h2>
           <p className="text-xs text-muted mt-1">
             {searchQuery ? (
               <>
                 Results for &ldquo;<span className="text-primary">{searchQuery}</span>&rdquo;
-                — Blending{" "}
-                <span className="text-purple">LLM Relevancy (60%)</span> with{" "}
-                <span className="text-accent">On-Chain Trust (40%)</span>
+                {hasRealResults ? (
+                  <> — <span className="text-accent">Live Gemini + PVM scoring</span></>
+                ) : (
+                  <> — Blending <span className="text-purple">LLM Relevancy (60%)</span> with{" "}
+                    <span className="text-accent">On-Chain Trust (40%)</span></>
+                )}
               </>
             ) : (
               "All agents ranked by On-Chain Trust score from PolkaVM"
@@ -108,7 +126,6 @@ export default function DiscoveryTab({
         </div>
       </div>
 
-      {/* Column Headers */}
       <div className="grid grid-cols-[1fr_130px_130px_120px] gap-3 px-4 text-xs text-muted uppercase tracking-wider font-medium">
         <span>Agent</span>
         <span className="text-center">LLM Relevancy</span>
@@ -116,22 +133,16 @@ export default function DiscoveryTab({
         <span className="text-center">Valence Score</span>
       </div>
 
-      {/* Agent Rows */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-1">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-20 glass-card animate-pulse"
-            />
+            <div key={i} className="h-20 glass-card animate-pulse" />
           ))
         ) : sorted.length === 0 ? (
           <div className="text-center text-muted py-16">
             <Cpu className="w-8 h-8 mx-auto mb-3 opacity-40" />
             <p className="text-sm">No agents discovered yet.</p>
-            <p className="text-xs mt-1">
-              Use the Gatekeeper to initiate a search.
-            </p>
+            <p className="text-xs mt-1">Use the Gatekeeper to initiate a search.</p>
           </div>
         ) : (
           sorted.map((agent, idx) => {
@@ -146,11 +157,8 @@ export default function DiscoveryTab({
               >
                 <div
                   className="grid grid-cols-[1fr_130px_130px_120px] gap-3 items-center p-4 cursor-pointer hover:bg-surface-light/50 transition-colors"
-                  onClick={() =>
-                    setExpandedAgent(isExpanded ? null : agent.address)
-                  }
+                  onClick={() => setExpandedAgent(isExpanded ? null : agent.address)}
                 >
-                  {/* Agent Info */}
                   <div className="flex items-center gap-3 min-w-0">
                     <div
                       className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
@@ -165,43 +173,41 @@ export default function DiscoveryTab({
                       #{idx + 1}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">
-                        {agent.name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm truncate">{agent.name}</p>
+                        {agent.isSybilFlagged && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 shrink-0">
+                            sybil risk
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted truncate">
                         {agent.description.slice(0, 60)}...
                       </p>
                     </div>
                   </div>
 
-                  {/* LLM Relevancy */}
                   <div className="text-center">
                     <p className="text-sm font-bold text-purple">
                       {agent.llmRelevancy}
-                      <span className="text-xs text-muted font-normal">
-                        /100
-                      </span>
+                      <span className="text-xs text-muted font-normal">/100</span>
                     </p>
                     <div className="progress-bar mt-1.5 mx-auto w-20">
                       <div
                         className="progress-bar-fill"
                         style={{
                           width: `${agent.llmRelevancy}%`,
-                          background:
-                            "linear-gradient(90deg, #6366F1, #8B5CF6)",
+                          background: "linear-gradient(90deg, #6366F1, #8B5CF6)",
                         }}
                       />
                     </div>
                   </div>
 
-                  {/* On-Chain Trust */}
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-1">
                       <p className="text-sm font-bold text-accent">
                         {agent.onChainTrust}
-                        <span className="text-xs text-muted font-normal">
-                          /100
-                        </span>
+                        <span className="text-xs text-muted font-normal">/100</span>
                       </p>
                       <Zap className="w-3 h-3 text-accent" />
                     </div>
@@ -210,19 +216,15 @@ export default function DiscoveryTab({
                         className="progress-bar-fill"
                         style={{
                           width: `${agent.onChainTrust}%`,
-                          background:
-                            "linear-gradient(90deg, #00E6A0, #00B880)",
+                          background: "linear-gradient(90deg, #00E6A0, #00B880)",
                         }}
                       />
                     </div>
                   </div>
 
-                  {/* Valence Score */}
                   <div className="text-center flex items-center justify-center gap-2">
                     <div>
-                      <p className="text-lg font-bold gradient-text">
-                        {agent.valenceScore}
-                      </p>
+                      <p className="text-lg font-bold gradient-text">{agent.valenceScore}</p>
                       <p className="text-[10px] text-muted">BLENDED</p>
                     </div>
                     {isExpanded ? (
@@ -233,7 +235,6 @@ export default function DiscoveryTab({
                   </div>
                 </div>
 
-                {/* Expanded Details */}
                 <AnimatePresence>
                   {isExpanded && (
                     <motion.div
@@ -243,27 +244,29 @@ export default function DiscoveryTab({
                       exit={{ height: 0, opacity: 0 }}
                     >
                       <div className="grid grid-cols-2 gap-4">
-                        {/* Address + Description */}
                         <div>
                           <p className="text-xs text-muted mb-1">Address</p>
                           <p className="font-mono text-xs text-foreground">
-                            {truncateAddress(agent.address)}
+                            {truncateAddress(agent.address as `0x${string}`)}
                           </p>
-                          <p className="text-xs text-muted mt-3 mb-1">
-                            Description
-                          </p>
+                          <p className="text-xs text-muted mt-3 mb-1">Description</p>
                           <p className="text-xs text-foreground/80 leading-relaxed">
                             {agent.description}
                           </p>
-                          <p className="text-xs text-muted mt-3 mb-1">
-                            Raw Reputation (from PVM)
-                          </p>
+                          {agent.reasoning && (
+                            <>
+                              <p className="text-xs text-muted mt-3 mb-1">Gemini reasoning</p>
+                              <p className="text-xs text-foreground/70 italic leading-relaxed">
+                                &ldquo;{agent.reasoning}&rdquo;
+                              </p>
+                            </>
+                          )}
+                          <p className="text-xs text-muted mt-3 mb-1">Raw Reputation (from PVM)</p>
                           <p className="text-sm font-mono font-bold text-accent">
                             {agent.reputation}
                           </p>
                         </div>
 
-                        {/* Interaction History */}
                         <div>
                           <p className="text-xs text-muted mb-2">
                             <TrendingUp className="w-3 h-3 inline mr-1" />
@@ -286,11 +289,7 @@ export default function DiscoveryTab({
                                 >
                                   <span
                                     className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                    style={{
-                                      background: interactionTypeColor(
-                                        ix.interactionType
-                                      ),
-                                    }}
+                                    style={{ background: interactionTypeColor(ix.interactionType) }}
                                   />
                                   <span className="font-medium">
                                     {interactionTypeLabel(ix.interactionType)}
