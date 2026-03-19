@@ -4,10 +4,8 @@ import { useState, useCallback } from "react";
 import {
   useAccount,
   useWriteContract,
-  useWaitForTransactionReceipt,
   useSwitchChain,
 } from "wagmi";
-import { parseEther } from "viem";
 import { SOLIDITY_ADDRESS, VALENCE_ABI, publicClient } from "@/lib/contract";
 import { polkadotTestnet } from "@/lib/wagmi.config";
 import type { Address } from "viem";

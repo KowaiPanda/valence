@@ -91,10 +91,10 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
-  const handleSearchComplete = useCallback((query: string, results?: SearchResult[]) => {
-  setSearchQuery(query);
-  if (results) setSearchResults(results);
-  setActiveTab("discovery");
+  const handleSearchComplete = useCallback((query: string, results: SearchResult[]) => {
+    setSearchQuery(query);
+    setSearchResults(results);
+    setActiveTab("discovery");
   }, []);
 
   return (

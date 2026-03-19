@@ -33,22 +33,6 @@ interface DiscoveryTabProps {
   searchResults?: SearchResult[];
 }
 
-function computeLLMRelevancy(agentAddr: string, query: string, desc: string): number {
-  if (!query.trim()) return 0;
-  const qLower = query.toLowerCase();
-  const dLower = desc.toLowerCase();
-  const qWords = qLower.split(/\s+/).filter((w) => w.length > 2);
-  const matches = qWords.filter((w) => dLower.includes(w)).length;
-  const baseScore = Math.min((matches / Math.max(qWords.length, 1)) * 100, 100);
-  const seed = parseInt(agentAddr.slice(2, 8), 16);
-  const variance = (seed % 30) - 15;
-  return Math.max(0, Math.min(100, Math.round(baseScore + variance)));
-}
-
-function computeValenceScore(llmRelevancy: number, onChainTrust: number): number {
-  return Math.round(llmRelevancy * 0.6 + onChainTrust * 0.4);
-}
-
 export default function DiscoveryTab({
   agents,
   loading,
@@ -61,36 +45,22 @@ export default function DiscoveryTab({
     setExpandedAgent(null);
   }, [searchResults, searchQuery]);
 
-  const hasRealResults = searchResults && searchResults.length > 0;
-
-  const sorted = hasRealResults
-    ? searchResults.map((r) => ({
-        address: r.address,
-        name:
-          agents.find((a) => a.address.toLowerCase() === r.address.toLowerCase())?.name ??
-          truncateAddress(r.address as `0x${string}`),
-        description: r.profile,
-        reputation: r.chainScore,
-        interactions:
-          agents.find((a) => a.address.toLowerCase() === r.address.toLowerCase())
-            ?.interactions ?? [],
-        onChainTrust: Math.min(100, Math.round(r.chainScore / 10)),
-        llmRelevancy: Math.round(r.geminiScore * 100),
-        valenceScore: Math.round(r.finalScore * 100),
-        reasoning: r.reasoning,
-        isSybilFlagged: r.isSybilFlagged,
-      }))
-    : [...agents]
-        .map((agent) => {
-          const maxTrust = Math.max(...agents.map((a) => a.reputation), 1);
-          const onChainTrust = Math.round((agent.reputation / maxTrust) * 100);
-          const llmRelevancy = searchQuery
-            ? computeLLMRelevancy(agent.address, searchQuery, agent.description)
-            : Math.round(50 + (parseInt(agent.address.slice(4, 8), 16) % 50));
-          const valenceScore = computeValenceScore(llmRelevancy, onChainTrust);
-          return { ...agent, onChainTrust, llmRelevancy, valenceScore, reasoning: "", isSybilFlagged: false };
-        })
-        .sort((a, b) => b.valenceScore - a.valenceScore);
+  const sorted = (searchResults ?? []).map((r) => ({
+    address: r.address,
+    name:
+      agents.find((a) => a.address.toLowerCase() === r.address.toLowerCase())?.name ??
+      truncateAddress(r.address as `0x${string}`),
+    description: r.profile,
+    reputation: r.chainScore,
+    interactions:
+      agents.find((a) => a.address.toLowerCase() === r.address.toLowerCase())
+        ?.interactions ?? [],
+    onChainTrust: Math.min(100, Math.round(r.chainScore / 10)),
+    llmRelevancy: Math.round(r.geminiScore * 100),
+    valenceScore: Math.round(r.finalScore * 100),
+    reasoning: r.reasoning,
+    isSybilFlagged: r.isSybilFlagged,
+  }));
 
   return (
     <div className="flex flex-col gap-4 h-full">
@@ -101,15 +71,10 @@ export default function DiscoveryTab({
             {searchQuery ? (
               <>
                 Results for &ldquo;<span className="text-primary">{searchQuery}</span>&rdquo;
-                {hasRealResults ? (
-                  <> — <span className="text-accent">Live Gemini + PVM scoring</span></>
-                ) : (
-                  <> — Blending <span className="text-purple">LLM Relevancy (60%)</span> with{" "}
-                    <span className="text-accent">On-Chain Trust (40%)</span></>
-                )}
+                <> — <span className="text-accent">Live Gemini + PVM scoring</span></>
               </>
             ) : (
-              "All agents ranked by On-Chain Trust score from PolkaVM"
+              "Run a gated search to load real backend-ranked agents"
             )}
           </p>
         </div>
@@ -141,8 +106,10 @@ export default function DiscoveryTab({
         ) : sorted.length === 0 ? (
           <div className="text-center text-muted py-16">
             <Cpu className="w-8 h-8 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">No agents discovered yet.</p>
-            <p className="text-xs mt-1">Use the Gatekeeper to initiate a search.</p>
+            <p className="text-sm">
+              {searchQuery ? "No backend results returned for this query." : "No search results yet."}
+            </p>
+            <p className="text-xs mt-1">Use the Gatekeeper to run a real paid search.</p>
           </div>
         ) : (
           sorted.map((agent, idx) => {

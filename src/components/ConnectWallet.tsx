@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { Loader2, Wallet, LogOut, AlertTriangle } from "lucide-react";
@@ -8,11 +9,28 @@ import { truncateAddress } from "@/lib/contract";
 import type { Address } from "viem";
 
 export function ConnectWallet() {
+  const [mounted, setMounted] = useState(false);
   const { address, isConnected } = useAccount();
   const { connect, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <button
+        disabled
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-card text-sm font-medium opacity-60"
+      >
+        <Wallet className="w-4 h-4" />
+        Connect Wallet
+      </button>
+    );
+  }
 
   const isWrongNetwork = isConnected && chainId !== polkadotTestnet.id;
 

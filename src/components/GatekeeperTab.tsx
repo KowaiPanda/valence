@@ -4,10 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Unlock, Search, X, Zap, ArrowRight } from "lucide-react";
 import { useAccount } from "wagmi";
-import { useSearchWithPayment } from "@/hooks/useSearchWithPayment.wagmi";
+import {
+  useSearchWithPayment,
+  type SearchResult,
+} from "@/hooks/useSearchWithPayment.wagmi";
 
 interface GatekeeperTabProps {
-  onSearchComplete: (query: string) => void;
+  onSearchComplete: (query: string, results: SearchResult[]) => void;
 }
 
 export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) {
@@ -17,7 +20,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
   const [logs, setLogs] = useState<string[]>([]);
 
   const { address, isConnected } = useAccount();
-  const { search, status, txHash, error, reset } = useSearchWithPayment();
+  const { search, status, txHash, error, reset, results } = useSearchWithPayment();
 
   const addLog = useCallback((msg: string) => {
     setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
@@ -48,12 +51,12 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
       addLog("Discovery results received. Switching to Leaderboard tab.");
       setUnlocked(true);
       setShowModal(false);
-      setTimeout(() => onSearchComplete(query), 800);
+      setTimeout(() => onSearchComplete(query, results), 800);
     } else if (status === "error" && error) {
       addLog(`Error: ${error}`);
       setShowModal(false);
     }
-  }, [status, txHash, error]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, txHash, error, query, results, onSearchComplete, addLog]);
 
   const handleSearch = () => {
     if (!query.trim()) return;
@@ -63,18 +66,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
       return;
     }
 
-    if (unlocked) {
-      // Already paid — go straight to discovery
-      addLog(`Searching for: "${query}" with valid x-l402-tx-hash header...`);
-      addLog("402 Gate PASSED — Agent has valid payment proof.");
-      addLog("Forwarding to Discovery Engine...");
-      setTimeout(() => {
-        addLog("Discovery results received. Switching to Leaderboard tab.");
-        onSearchComplete(query);
-      }, 1200);
-      return;
-    }
-
+    setUnlocked(false);
     setShowModal(true);
     addLog(`Search attempt blocked: "${query}"`);
     addLog("HTTP 402 — Payment Required. No valid x-l402-tx-hash header.");
