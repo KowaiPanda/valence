@@ -20,6 +20,11 @@ export type SearchResult = {
   isSybilFlagged: boolean;
 };
 
+export type SearchMeta = {
+  timestamp: number;
+  totalAgents: number;
+};
+
 export type SearchStatus =
   | "idle"
   | "switching_chain"
@@ -44,6 +49,7 @@ export const STATUS_LABELS: Record<SearchStatus, string> = {
 export function useSearchWithPayment() {
   const [status, setStatus] = useState<SearchStatus>("idle");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [searchMeta, setSearchMeta] = useState<SearchMeta | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
 
@@ -61,6 +67,7 @@ export function useSearchWithPayment() {
 
       setError(null);
       setResults([]);
+      setSearchMeta(undefined);
       setTxHash(null);
 
       try {
@@ -112,8 +119,14 @@ export function useSearchWithPayment() {
         });
 
         if (!verifyRes.ok) {
-          const { error: msg } = await verifyRes.json();
-          throw new Error(msg ?? "Payment verification failed");
+          let msg = "Payment verification failed";
+          try {
+            const payload = await verifyRes.json();
+            msg = payload?.error ?? msg;
+          } catch {
+            msg = "Payment verification failed";
+          }
+          throw new Error(`PAYMENT_FAILED:${msg}`);
         }
 
         const { token } = await verifyRes.json();
@@ -128,22 +141,49 @@ export function useSearchWithPayment() {
         });
 
         if (!searchRes.ok) {
-          const { error: msg } = await searchRes.json();
-          throw new Error(msg ?? "Search failed");
+          let msg = "Search failed";
+          try {
+            const payload = await searchRes.json();
+            msg = payload?.error ?? msg;
+          } catch {
+            msg = "Search failed";
+          }
+
+          if (searchRes.status === 402) {
+            throw new Error(`PAYMENT_FAILED:${msg}`);
+          }
+
+          if (searchRes.status >= 500) {
+            throw new Error(`GEMINI_UNAVAILABLE:${msg}`);
+          }
+
+          throw new Error(msg);
         }
 
-        const { results: ranked } = await searchRes.json();
+        const payload = await searchRes.json();
+        const ranked: SearchResult[] = payload?.results ?? [];
+        const meta = payload?.meta;
+
         setResults(ranked);
+        setSearchMeta({
+          timestamp: Number(meta?.timestamp ?? Date.now()),
+          totalAgents: Number(meta?.totalAgents ?? ranked.length),
+        });
         setStatus("done");
       } catch (err: unknown) {
         // User rejected the wallet tx — friendly message
-        const msg =
-          err instanceof Error
-            ? err.message.includes("User rejected") ||
-              err.message.includes("user rejected")
-              ? "Transaction rejected in wallet"
-              : err.message
-            : "Something went wrong";
+        let msg = "Something went wrong";
+        if (err instanceof Error) {
+          if (err.message.includes("User rejected") || err.message.includes("user rejected")) {
+            msg = "Transaction rejected in wallet";
+          } else if (err.message.startsWith("PAYMENT_FAILED:")) {
+            msg = err.message.replace("PAYMENT_FAILED:", "") || "Payment verification failed";
+          } else if (err.message.startsWith("GEMINI_UNAVAILABLE:")) {
+            msg = "Gemini unavailable. Please retry in a moment.";
+          } else {
+            msg = err.message;
+          }
+        }
         setError(msg);
         setStatus("error");
       }
@@ -154,6 +194,7 @@ export function useSearchWithPayment() {
   const reset = useCallback(() => {
     setStatus("idle");
     setResults([]);
+    setSearchMeta(undefined);
     setError(null);
     setTxHash(null);
   }, []);
@@ -162,6 +203,7 @@ export function useSearchWithPayment() {
     search,
     status,
     results,
+    searchMeta,
     error,
     txHash,
     reset,

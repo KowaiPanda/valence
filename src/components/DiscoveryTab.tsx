@@ -15,6 +15,7 @@ import {
   interactionTypeLabel,
   interactionTypeColor,
 } from "@/lib/contract";
+import type { SearchMeta } from "@/hooks/useSearchWithPayment.wagmi";
 
 interface SearchResult {
   address: string;
@@ -31,6 +32,10 @@ interface DiscoveryTabProps {
   loading: boolean;
   searchQuery: string;
   searchResults?: SearchResult[];
+  searchMeta?: SearchMeta;
+  selectedAgent?: `0x${string}`;
+  onSelectAgent?: (address: `0x${string}`) => void;
+  onOpenTrustGraph?: () => void;
 }
 
 export default function DiscoveryTab({
@@ -38,6 +43,10 @@ export default function DiscoveryTab({
   loading,
   searchQuery,
   searchResults,
+  searchMeta,
+  selectedAgent,
+  onSelectAgent,
+  onOpenTrustGraph,
 }: DiscoveryTabProps) {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
 
@@ -62,6 +71,11 @@ export default function DiscoveryTab({
     isSybilFlagged: r.isSybilFlagged,
   }));
 
+  const focusAgent = sorted.find((agent) => agent.address === expandedAgent) ?? sorted[0];
+  const formattedUpdateTime = searchMeta?.timestamp
+    ? new Date(searchMeta.timestamp).toLocaleTimeString()
+    : null;
+
   return (
     <div className="flex flex-col gap-4 h-full">
       <div className="flex items-center justify-between">
@@ -79,7 +93,7 @@ export default function DiscoveryTab({
           </p>
         </div>
         <div
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs shrink-0"
           style={{
             background: "rgba(139, 92, 246, 0.1)",
             border: "1px solid rgba(139, 92, 246, 0.2)",
@@ -88,6 +102,44 @@ export default function DiscoveryTab({
         >
           <Cpu className="w-3 h-3" />
           Powered by PVM
+        </div>
+      </div>
+
+      <div className="glass-card p-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          {[
+            { label: "On-chain", color: "#00E6A0" },
+            { label: "Gemini", color: "#8B5CF6" },
+            { label: "PVM", color: "#00B8FF" },
+          ].map((source) => (
+            <span
+              key={source.label}
+              className="px-2 py-1 rounded-full border"
+              style={{
+                borderColor: `${source.color}50`,
+                background: `${source.color}14`,
+                color: source.color,
+              }}
+            >
+              {source.label}
+            </span>
+          ))}
+          {formattedUpdateTime && (
+            <span className="text-muted">Updated {formattedUpdateTime}</span>
+          )}
+          {typeof searchMeta?.totalAgents === "number" && (
+            <span className="text-muted">Agents scanned: {searchMeta.totalAgents}</span>
+          )}
+        </div>
+        <div className="text-muted leading-relaxed">
+          <span className="text-foreground font-medium">Valence score formula:</span>{" "}
+          <span className="font-mono">0.6 × Gemini + 0.4 × On-Chain Trust</span>
+          {focusAgent && (
+            <>
+              {" "}→ <span className="font-mono">0.6 × {focusAgent.llmRelevancy} + 0.4 × {focusAgent.onChainTrust} = {focusAgent.valenceScore}</span>
+            </>
+          )}
+          . Sybil multiplier is applied server-side (flagged agents are penalized), and trust uses 30-day exponential decay from PVM math.
         </div>
       </div>
 
@@ -109,7 +161,11 @@ export default function DiscoveryTab({
             <p className="text-sm">
               {searchQuery ? "No backend results returned for this query." : "No search results yet."}
             </p>
-            <p className="text-xs mt-1">Use the Gatekeeper to run a real paid search.</p>
+            <p className="text-xs mt-1">
+              {searchQuery
+                ? "No agents found. Try a broader query or verify registered agents in backend env."
+                : "Use the Gatekeeper to run a real paid search."}
+            </p>
           </div>
         ) : (
           sorted.map((agent, idx) => {
@@ -124,7 +180,10 @@ export default function DiscoveryTab({
               >
                 <div
                   className="grid grid-cols-[1fr_130px_130px_120px] gap-3 items-center p-4 cursor-pointer hover:bg-surface-light/50 transition-colors"
-                  onClick={() => setExpandedAgent(isExpanded ? null : agent.address)}
+                  onClick={() => {
+                    setExpandedAgent(isExpanded ? null : agent.address);
+                    onSelectAgent?.(agent.address as `0x${string}`);
+                  }}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div
@@ -142,6 +201,11 @@ export default function DiscoveryTab({
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm truncate">{agent.name}</p>
+                        {selectedAgent === agent.address && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-primary/40 text-primary">
+                            selected
+                          </span>
+                        )}
                         {agent.isSybilFlagged && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 shrink-0">
                             sybil risk
@@ -232,6 +296,17 @@ export default function DiscoveryTab({
                           <p className="text-sm font-mono font-bold text-accent">
                             {agent.reputation}
                           </p>
+                          <button
+                            type="button"
+                            className="mt-3 text-xs underline text-primary"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onSelectAgent?.(agent.address as `0x${string}`);
+                              onOpenTrustGraph?.();
+                            }}
+                          >
+                            Highlight in Trust Graph
+                          </button>
                         </div>
 
                         <div>

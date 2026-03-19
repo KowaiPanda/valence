@@ -6,11 +6,13 @@ import { Lock, Unlock, Search, X, Zap, ArrowRight } from "lucide-react";
 import { useAccount } from "wagmi";
 import {
   useSearchWithPayment,
+  type SearchMeta,
   type SearchResult,
 } from "@/hooks/useSearchWithPayment.wagmi";
+import { getMicropaymentFee } from "@/lib/contract";
 
 interface GatekeeperTabProps {
-  onSearchComplete: (query: string, results: SearchResult[]) => void;
+  onSearchComplete: (query: string, results: SearchResult[], meta?: SearchMeta) => void;
 }
 
 export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) {
@@ -18,12 +20,24 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
   const [showModal, setShowModal] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [micropaymentFee, setMicropaymentFee] = useState("0.001");
+  const [copied, setCopied] = useState(false);
 
   const { address, isConnected } = useAccount();
-  const { search, status, txHash, error, reset, results } = useSearchWithPayment();
+  const { search, status, txHash, error, reset, results, searchMeta } = useSearchWithPayment();
 
   const addLog = useCallback((msg: string) => {
     setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getMicropaymentFee().then((fee) => {
+      if (active && fee) setMicropaymentFee(fee);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Mirror hook status into logs — same messages as before
@@ -49,14 +63,37 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
       addLog("Forwarding to Discovery Engine...");
     } else if (status === "done") {
       addLog("Discovery results received. Switching to Leaderboard tab.");
+      if (results.length === 0) {
+        addLog("No agents found for this query.");
+      }
       setUnlocked(true);
       setShowModal(false);
-      setTimeout(() => onSearchComplete(query, results), 800);
+      setTimeout(() => onSearchComplete(query, results, searchMeta), 800);
     } else if (status === "error" && error) {
       addLog(`Error: ${error}`);
       setShowModal(false);
     }
-  }, [status, txHash, error, query, results, onSearchComplete, addLog]);
+  }, [status, txHash, error, query, results, searchMeta, onSearchComplete, addLog]);
+
+  const copyTxHash = useCallback(async () => {
+    if (!txHash) return;
+    try {
+      await navigator.clipboard.writeText(txHash);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  }, [txHash]);
+
+  const errorLabel =
+    !error
+      ? null
+      : error.toLowerCase().includes("payment") || error.toLowerCase().includes("transaction")
+      ? "Payment failed"
+      : error.toLowerCase().includes("gemini")
+      ? "Gemini unavailable"
+      : "Search failed";
 
   const handleSearch = () => {
     if (!query.trim()) return;
@@ -159,7 +196,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
             }}
           >
             <Search className="w-4 h-4" />
-            {unlocked ? "Search" : "Search (0.001 PAS)"}
+            {unlocked ? "Search" : `Search (${micropaymentFee} PAS)`}
           </button>
         </div>
 
@@ -189,6 +226,12 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
               >
                 view
               </a>
+              <button
+                onClick={copyTxHash}
+                className="text-accent underline shrink-0"
+              >
+                {copied ? "copied" : "copy"}
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -204,7 +247,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
           <ArrowRight className="w-3 h-3 text-primary" />
           <div className="glass-card px-3 py-2 text-center border-primary/30">
             <p className="font-medium text-primary text-[11px]">x402 Gate</p>
-            <p className="text-[10px]">0.001 PAS</p>
+            <p className="text-[10px]">{micropaymentFee} PAS</p>
           </div>
           <ArrowRight className="w-3 h-3 text-accent" />
           <div className="glass-card px-3 py-2 text-center border-accent/30">
@@ -296,7 +339,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
                 </p>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted">Fee:</span>
-                  <span className="text-2xl font-bold gradient-text">0.001 PAS</span>
+                  <span className="text-2xl font-bold gradient-text">{micropaymentFee} PAS</span>
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-xs text-muted">Network:</span>
@@ -314,16 +357,34 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
 
               {/* Live tx hash while confirming — replaces the typewriter effect */}
               {txHash && (
-                <div className="rounded-xl p-3 mb-4 bg-surface font-mono text-xs break-all text-accent">
-                  <span className="text-muted">tx_hash: </span>
-                  {txHash}
+                <div className="rounded-xl p-3 mb-4 bg-surface font-mono text-xs text-accent">
+                  <p className="break-all">
+                    <span className="text-muted">tx_hash: </span>
+                    {txHash}
+                  </p>
+                  <div className="flex items-center gap-3 mt-2">
+                    <button onClick={copyTxHash} className="underline">
+                      {copied ? "Copied" : "Copy tx hash"}
+                    </button>
+                    <a
+                      href={`https://blockscout-testnet.polkadot.io/tx/${txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                    >
+                      Open in Blockscout
+                    </a>
+                  </div>
                 </div>
               )}
 
               {/* Error state */}
               {status === "error" && error && (
-                <div className="rounded-xl p-3 mb-4 text-xs text-red-400 bg-red-500/10 border border-red-500/20">
-                  {error}
+                <div className="rounded-xl p-3 mb-4 text-xs text-red-400 bg-red-500/10 border border-red-500/20 space-y-1">
+                  {errorLabel && (
+                    <p className="font-semibold">{errorLabel}</p>
+                  )}
+                  <p>{error}</p>
                 </div>
               )}
 
@@ -353,7 +414,7 @@ export default function GatekeeperTab({ onSearchComplete }: GatekeeperTabProps) 
                 ) : status === "error" ? (
                   "Try Again"
                 ) : (
-                  "Pay 0.001 PAS to Unlock"
+                  `Pay ${micropaymentFee} PAS to Unlock`
                 )}
               </button>
 

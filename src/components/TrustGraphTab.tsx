@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Network } from "lucide-react";
@@ -19,6 +19,8 @@ interface TrustGraphTabProps {
   agents: AgentData[];
   interactions: AgentInteraction[];
   loading: boolean;
+  selectedAgent?: `0x${string}`;
+  onSelectAgent?: (address: `0x${string}`) => void;
 }
 
 interface GraphNode {
@@ -37,11 +39,26 @@ interface GraphLink {
   width: number;
 }
 
+function getEndpointId(endpoint: unknown): string {
+  if (typeof endpoint === "string") return endpoint;
+  if (endpoint && typeof endpoint === "object" && "id" in endpoint) {
+    const maybeId = (endpoint as { id?: unknown }).id;
+    return typeof maybeId === "string" ? maybeId : "";
+  }
+  return "";
+}
+
 export default function TrustGraphTab({
   agents,
   interactions,
   loading,
+  selectedAgent,
+  onSelectAgent,
 }: TrustGraphTabProps) {
+  const [showPayments, setShowPayments] = useState(true);
+  const [showPositive, setShowPositive] = useState(true);
+  const [showNegative, setShowNegative] = useState(true);
+
   const graphData = useMemo(() => {
     const nodesMap = new Map<string, GraphNode>();
 
@@ -102,11 +119,28 @@ export default function TrustGraphTab({
           : 1.5,
     }));
 
+    const filteredLinks = links.filter((link) => {
+      if (link.type === 1 && !showPayments) return false;
+      if (link.type === 2 && !showPositive) return false;
+      if (link.type === 3 && !showNegative) return false;
+      return true;
+    });
+
     return {
       nodes: Array.from(nodesMap.values()),
-      links,
+      links: filteredLinks,
     };
-  }, [agents, interactions]);
+  }, [agents, interactions, showPayments, showPositive, showNegative]);
+
+  const connectedToSelected = useMemo(() => {
+    if (!selectedAgent) return new Set<string>();
+    const connected = new Set<string>([selectedAgent]);
+    graphData.links.forEach((link) => {
+      if (link.source === selectedAgent) connected.add(link.target);
+      if (link.target === selectedAgent) connected.add(link.source);
+    });
+    return connected;
+  }, [graphData.links, selectedAgent]);
 
   return (
     <div className="flex flex-col gap-4 h-full">
@@ -130,6 +164,43 @@ export default function TrustGraphTab({
           <Network className="w-3 h-3" />
           {graphData.nodes.length} nodes · {graphData.links.length} edges
         </div>
+      </div>
+
+      <div className="glass-card p-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-muted mr-1">Edge filters:</span>
+        <button
+          className="px-2 py-1 rounded border"
+          style={{
+            borderColor: showPayments ? "#00E6A0" : "rgba(138,127,168,0.4)",
+            color: showPayments ? "#00E6A0" : "#8a7fa8",
+          }}
+          onClick={() => setShowPayments((value) => !value)}
+        >
+          x402
+        </button>
+        <button
+          className="px-2 py-1 rounded border"
+          style={{
+            borderColor: showPositive ? "#6366F1" : "rgba(138,127,168,0.4)",
+            color: showPositive ? "#6366F1" : "#8a7fa8",
+          }}
+          onClick={() => setShowPositive((value) => !value)}
+        >
+          Positive
+        </button>
+        <button
+          className="px-2 py-1 rounded border"
+          style={{
+            borderColor: showNegative ? "#EF4444" : "rgba(138,127,168,0.4)",
+            color: showNegative ? "#EF4444" : "#8a7fa8",
+          }}
+          onClick={() => setShowNegative((value) => !value)}
+        >
+          Negative
+        </button>
+        {selectedAgent && (
+          <span className="text-muted">Highlighting {truncateAddress(selectedAgent)}</span>
+        )}
       </div>
 
       {/* Graph Area */}
@@ -163,6 +234,11 @@ export default function TrustGraphTab({
             }}
             nodeColor={(node) => {
               const graphNode = node as GraphNode;
+              if (selectedAgent) {
+                if (graphNode.id === selectedAgent) return "#E6007A";
+                if (connectedToSelected.has(graphNode.id)) return graphNode.color;
+                return "rgba(90, 82, 113, 0.45)";
+              }
               return graphNode.color;
             }}
             nodeCanvasObject={(node, ctx, globalScale) => {
@@ -183,6 +259,14 @@ export default function TrustGraphTab({
               ctx.fill();
               ctx.globalAlpha = 1;
 
+              if (selectedAgent && graphNode.id === selectedAgent) {
+                ctx.beginPath();
+                ctx.arc(x, y, size + 3, 0, 2 * Math.PI);
+                ctx.strokeStyle = "#E6007A";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+              }
+
               ctx.shadowBlur = 0;
 
               // Label
@@ -197,10 +281,22 @@ export default function TrustGraphTab({
             }}
             linkColor={(link) => {
               const graphLink = link as GraphLink;
+              if (selectedAgent) {
+                const sourceId = getEndpointId(graphLink.source);
+                const targetId = getEndpointId(graphLink.target);
+                const connected = sourceId === selectedAgent || targetId === selectedAgent;
+                return connected ? graphLink.color : "rgba(93, 86, 116, 0.2)";
+              }
               return graphLink.color;
             }}
             linkWidth={(link) => {
               const graphLink = link as GraphLink;
+              if (selectedAgent) {
+                const sourceId = getEndpointId(graphLink.source);
+                const targetId = getEndpointId(graphLink.target);
+                const connected = sourceId === selectedAgent || targetId === selectedAgent;
+                return connected ? Math.max(2, graphLink.width + 1) : 1;
+              }
               return graphLink.width;
             }}
             linkDirectionalParticles={2}
@@ -212,6 +308,10 @@ export default function TrustGraphTab({
             cooldownTicks={100}
             enableZoomInteraction={true}
             enablePanInteraction={true}
+            onNodeClick={(node) => {
+              const graphNode = node as GraphNode;
+              onSelectAgent?.(graphNode.id as `0x${string}`);
+            }}
           />
         )}
       </div>

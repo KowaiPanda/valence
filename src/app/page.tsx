@@ -10,6 +10,7 @@ import GatekeeperTab from "@/components/GatekeeperTab";
 import DiscoveryTab from "@/components/DiscoveryTab";
 import TrustGraphTab from "@/components/TrustGraphTab";
 import ArchitectureTab from "@/components/ArchitectureTab";
+import type { SearchMeta, SearchResult } from "@/hooks/useSearchWithPayment.wagmi";
 import {
   type AgentData,
   type AgentInteraction,
@@ -20,16 +21,6 @@ import {
 } from "@/lib/contract";
 
 type TabId = "gatekeeper" | "discovery" | "trustgraph" | "architecture";
-
-interface SearchResult {
-  address: string;
-  profile: string;
-  chainScore: number;
-  geminiScore: number;
-  finalScore: number;
-  reasoning: string;
-  isSybilFlagged: boolean;
-}
 
 const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "gatekeeper", label: "Gatekeeper", icon: Shield },
@@ -45,6 +36,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[] | undefined>(undefined);
+  const [searchMeta, setSearchMeta] = useState<SearchMeta | undefined>(undefined);
+  const [selectedAgent, setSelectedAgent] = useState<`0x${string}` | undefined>(undefined);
 
   // Fetch on-chain data
   const fetchData = useCallback(async () => {
@@ -91,9 +84,11 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
-  const handleSearchComplete = useCallback((query: string, results: SearchResult[]) => {
+  const handleSearchComplete = useCallback((query: string, results: SearchResult[], meta?: SearchMeta) => {
     setSearchQuery(query);
     setSearchResults(results);
+    setSearchMeta(meta);
+    setSelectedAgent(results[0]?.address as `0x${string}` | undefined);
     setActiveTab("discovery");
   }, []);
 
@@ -140,6 +135,10 @@ export default function Home() {
                 loading={loading}
                 searchQuery={searchQuery}
                 searchResults={searchResults}
+                searchMeta={searchMeta}
+                selectedAgent={selectedAgent}
+                onSelectAgent={(address) => setSelectedAgent(address)}
+                onOpenTrustGraph={() => setActiveTab("trustgraph")}
               />
             )}
             {activeTab === "trustgraph" && (
@@ -147,6 +146,8 @@ export default function Home() {
                 agents={agents}
                 interactions={interactions}
                 loading={loading}
+                selectedAgent={selectedAgent}
+                onSelectAgent={(address) => setSelectedAgent(address)}
               />
             )}
             {activeTab === "architecture" && <ArchitectureTab />}
