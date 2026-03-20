@@ -18,7 +18,6 @@ import {
 } from "@/lib/contract";
 import type { SearchMeta } from "@/hooks/useSearchWithPayment.wagmi";
 import AgentInteractionPanel from "@/components/AgentInteractionPanel";
-import type { InteractionType } from "@/hooks/useRecordInteractions.wagmi";
 
 interface SearchResult {
   address: string;
@@ -102,22 +101,32 @@ export default function DiscoveryTab({
     setExpandedAgent(null);
   }, [searchResults, searchQuery]);
 
-  const sorted = (searchResults ?? []).map((r) => ({
+  const sorted = (searchResults ?? []).map((r) => {
+  const knownAgent = agents.find(
+    (a) => a.address.toLowerCase() === r.address.toLowerCase()
+  );
+
+  const pipeIdx = r.profile.indexOf("|");
+  const nameFromProfile = pipeIdx !== -1
+    ? r.profile.slice(0, pipeIdx).trim()
+    : null;
+  const descFromProfile = pipeIdx !== -1
+    ? r.profile.slice(pipeIdx + 1).trim()
+    : r.profile;
+
+  return {
     address: r.address,
-    name:
-      agents.find((a) => a.address.toLowerCase() === r.address.toLowerCase())?.name ??
-      truncateAddress(r.address as `0x${string}`),
-    description: r.profile,
+    name: knownAgent?.name ?? nameFromProfile ?? truncateAddress(r.address as `0x${string}`),
+    description: knownAgent?.description ?? descFromProfile,
     reputation: r.chainScore,
-    interactions:
-      agents.find((a) => a.address.toLowerCase() === r.address.toLowerCase())
-        ?.interactions ?? [],
+    interactions: knownAgent?.interactions ?? [],
     onChainTrust: Math.min(100, Math.round(r.chainScore / 10)),
     llmRelevancy: Math.round(r.geminiScore * 100),
     valenceScore: Math.round(r.finalScore * 100),
     reasoning: r.reasoning,
     isSybilFlagged: r.isSybilFlagged,
-  }));
+  };
+});
 
   const focusAgent = sorted.find((agent) => agent.address === expandedAgent) ?? sorted[0];
   const formattedUpdateTime = searchMeta?.timestamp

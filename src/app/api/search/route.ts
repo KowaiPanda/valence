@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cacheGet, cacheSet } from "@/lib/cache";
+import { verifyToken, cacheGet, cacheSet } from "@/lib/cache";
 import {
   getReputationScore,
   getSybilScore,
@@ -8,18 +8,9 @@ import {
 import { scoreAgentsWithGemini } from "@/lib/llm";
 import { blendScores } from "@/lib/pagerank";
 
-// Store them in env as JSON, or replace with your own DB/store.
-// Format: AGENT_PROFILES={"0xABC":"DeFi data agent","0xDEF":"NFT pricer"}
-function getAgentProfiles(): Record<string, string> {
-  try {
-    return JSON.parse(process.env.AGENT_PROFILES ?? "{}");
-  } catch {
-    return {};
-  }
-}
-
 export async function POST(req: NextRequest) {
-  const { query, address, token } = await req.json();
+  const body = await req.json();
+  const { query, address, token } = body;
 
   if (!query || !address) {
     return NextResponse.json(
@@ -28,27 +19,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const storedToken = cacheGet<string>(`pass:${address.toLowerCase()}`);
-  if (!storedToken || storedToken !== token) {
+  // Verify HMAC token — works across serverless instances
+  if (!token || !verifyToken(address, token)) {
     return NextResponse.json(
       { error: "Payment required", code: 402 },
       { status: 402 }
     );
   }
 
+  // getKnownAgents returns { address, profile } where profile = "Name | Description"
   const agentList = await getKnownAgents();
 
   if (agentList.length === 0) {
-    return NextResponse.json({ results: [] });
+    return NextResponse.json({ results: [], meta: { totalAgents: 0, query, timestamp: Date.now() } });
   }
 
   const agentData = await Promise.all(
     agentList.map(async ({ address: agentAddr, profile }) => {
       const cacheKey = `agent:${agentAddr.toLowerCase()}`;
-      const cached = cacheGet<{
-        chainScore: number;
-        sybilMultiplier: number;
-      }>(cacheKey);
+      const cached = cacheGet<{ chainScore: number; sybilMultiplier: number }>(cacheKey);
+
+      console.log(`${profile}`)
 
       if (cached) {
         return { address: agentAddr, profile, ...cached };
@@ -64,9 +55,18 @@ export async function POST(req: NextRequest) {
     })
   );
 
+  // Strip "Name | " prefix — Gemini scores on description only, not the name
+  function descriptionOnly(profile: string): string {
+    const idx = profile.indexOf("|");
+    return idx !== -1 ? profile.slice(idx + 1).trim() : profile.trim();
+  }
+
   const geminiScored = await scoreAgentsWithGemini(
     query,
-    agentData.map((a) => ({ address: a.address, profile: a.profile }))
+    agentData.map((a) => ({
+      address: a.address,
+      profile: descriptionOnly(a.profile),
+    }))
   );
 
   const merged = agentData.map((a) => {
@@ -75,13 +75,13 @@ export async function POST(req: NextRequest) {
     );
     return {
       ...a,
+      // profile kept as "Name | Description" for frontend to parse
       geminiScore: g?.geminiScore ?? 0,
       reasoning: g?.reasoning ?? "",
     };
   });
 
   const ranked = blendScores(merged);
-  cacheSet(`pass:${address.toLowerCase()}`, "", 0);
 
   return NextResponse.json({
     results: ranked,

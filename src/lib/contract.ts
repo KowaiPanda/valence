@@ -17,7 +17,7 @@ const polkadotEvmTestnet = {
 } as const;
 
 export const SOLIDITY_ADDRESS: Address =
-  "0x08e1744be5cD5c890c0A94Ea8bB36394B731387a";
+  "0xF5C64C347833293352c15B08b5A241748E73b164";
 export const RUST_PVM_ADDRESS: Address =
   "0x3038d0be3fd22af9d42f2bc74f6e692e61e1b8c0";
 export const MICROPAYMENT_FEE = "0.001"; // PAS
@@ -117,7 +117,42 @@ export async function getMicropaymentFee(): Promise<string> {
   }
 }
 
-/* ---- Agent Name Generator (deterministic from address) ---- */
+function getAgentProfiles(): Record<string, { name: string; description: string }> {
+  try {
+    // AGENT_PROFILES env var format:
+    // {"0xabc...": "Name | Description", ...}
+    // OR just a description, in which case we derive name from it
+    const raw: Record<string, string> = JSON.parse(
+      process.env.NEXT_PUBLIC_AGENT_PROFILES ?? "{}"
+    );
+    const result: Record<string, { name: string; description: string }> = {};
+    for (const [addr, value] of Object.entries(raw)) {
+      // Support "Name | Description" format for a clean name
+      const [first, ...rest] = value.split("|");
+      if (rest.length > 0) {
+        result[addr.toLowerCase()] = {
+          name: first.trim(),
+          description: rest.join("|").trim(),
+        };
+      } else {
+        // No pipe — use first word(s) as name, full string as description
+        const words = first.trim().split(" ");
+        result[addr.toLowerCase()] = {
+          name: words[0],
+          description: first.trim(),
+        };
+      }
+    }
+    console.log("Parsed agent profiles:", result);
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+const PROFILES = getAgentProfiles();
+
+// Fallback generator
 const AGENT_ADJECTIVES = [
   "Quantum", "Neural", "Sonic", "Stellar", "Cipher", "Nexus",
   "Flux", "Apex", "Vortex", "Prism", "Echo", "Helix",
@@ -128,29 +163,18 @@ const AGENT_NOUNS = [
   "Broker", "Analyst", "Guardian", "Strategist", "Navigator", "Auditor",
   "Arbitrageur", "Indexer", "Validator", "Optimizer", "Resolver", "Synthesizer",
 ];
-const AGENT_DESCRIPTIONS: Record<string, string> = {};
 const DESC_TEMPLATES = [
   "Autonomous DeFi agent specializing in cross-chain yield optimization on Polkadot parachains.",
   "Smart contract auditor agent that reviews Solidity & ink! code for vulnerabilities.",
   "Data analytics agent processing on-chain metrics and generating actionable market intelligence.",
   "Portfolio management agent with advanced risk modeling and time-decay strategy execution.",
   "Decentralized oracle agent bridging off-chain data sources to PolkaVM smart contracts.",
-  "NFT valuation specialist leveraging ML models for real-time floor price predictions.",
-  "MEV-aware transaction routing agent optimizing gas costs across EVM-compatible chains.",
-  "Governance aggregator agent that monitors and participates in DAO proposals across ecosystems.",
-  "Liquidity provisioning agent with automated rebalancing for concentrated liquidity positions.",
-  "Security monitoring agent detecting anomalous on-chain activity patterns in real-time.",
-  "Cross-chain bridge agent enabling trustless asset transfers between Polkadot and Ethereum.",
-  "Supply chain verification agent ensuring provenance tracking via on-chain attestations.",
-  "AI-powered trading agent executing algorithmic strategies with Rust-level performance.",
-  "Reputation scoring agent computing trust metrics using exponential time-decay models.",
-  "Infrastructure monitoring agent for validator nodes and parachain health checks.",
-  "Compliance agent automating KYC/AML checks for decentralized finance protocols.",
-  "Content curation agent filtering and ranking Web3 project metadata using semantic search.",
-  "Insurance underwriting agent modeling risk pools for DeFi protocol coverage.",
 ];
 
 export function getAgentName(address: Address): string {
+  const profile = PROFILES[address.toLowerCase()];
+  if (profile) return profile.name;
+  // Fallback: deterministic name from address
   const seed = parseInt(address.slice(2, 10), 16);
   const adj = AGENT_ADJECTIVES[seed % AGENT_ADJECTIVES.length];
   const noun = AGENT_NOUNS[(seed >> 8) % AGENT_NOUNS.length];
@@ -158,11 +182,11 @@ export function getAgentName(address: Address): string {
 }
 
 export function getAgentDescription(address: Address): string {
-  if (AGENT_DESCRIPTIONS[address]) return AGENT_DESCRIPTIONS[address];
+  const profile = PROFILES[address.toLowerCase()];
+  if (profile) return profile.description;
+  // Fallback: deterministic description from address
   const seed = parseInt(address.slice(2, 10), 16);
-  const desc = DESC_TEMPLATES[(seed >> 4) % DESC_TEMPLATES.length];
-  AGENT_DESCRIPTIONS[address] = desc;
-  return desc;
+  return DESC_TEMPLATES[(seed >> 4) % DESC_TEMPLATES.length];
 }
 
 export function interactionTypeLabel(type: number): string {

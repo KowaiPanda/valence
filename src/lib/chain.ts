@@ -77,11 +77,23 @@ export async function getSybilScore(
 
 export async function getKnownAgents(): Promise<{ address: `0x${string}`; profile: string }[]> {
   const profiles: Record<string, string> = (() => {
-    try { return JSON.parse(process.env.AGENT_PROFILES ?? "{}"); }
-    catch { return {}; }
-  })();
+  try {
+    const raw = JSON.parse(process.env.AGENT_PROFILES ?? "{}");
+    // Normalize all keys to lowercase so lookup always matches
+    return Object.fromEntries(
+      Object.entries(raw).map(([k, v]) => [k.toLowerCase(), v as string])
+    );
+  } catch {
+    return {};
+  }
+})();
 
-  // Discover addresses from on-chain InteractionRecorded events
+  // Strip "Name | " prefix so Gemini scores on description only
+  function getDescription(raw: string): string {
+    const pipeIdx = raw.indexOf("|");
+    return pipeIdx !== -1 ? raw.slice(pipeIdx + 1).trim() : raw.trim();
+  }
+
   try {
     const logs = await client.getLogs({
       address: CONTRACT_ADDRESS,
@@ -94,8 +106,10 @@ export async function getKnownAgents(): Promise<{ address: `0x${string}`; profil
     const agents = new Map<string, string>();
     for (const log of logs) {
       const addr = (log.args as { agent: string }).agent.toLowerCase() as `0x${string}`;
-      // Use env profile if available, otherwise use address as fallback
-      const profile = profiles[addr] ?? profiles[addr.toLowerCase()] ?? `Agent ${addr.slice(0, 10)}`;
+      const raw = profiles[addr] ?? profiles[addr.toLowerCase()];
+      const profile = raw
+        ? getDescription(raw)
+        : `Agent ${addr.slice(0, 10)}`;
       agents.set(addr, profile);
     }
 
