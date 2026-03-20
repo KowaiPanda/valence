@@ -563,3 +563,111 @@ body {
   letter-spacing: 0.02em;
   border: 1px solid;
 }
+
+/* ---- Architecture Pipeline (horizontal) ---- */
+.arch-pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+}
+.arch-pipeline-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.arch-pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  min-width: 0;
+}
+.arch-pipeline-arrow {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+@media (max-width: 768px) {
+  .arch-pipeline {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .arch-pipeline-row {
+    flex-direction: column;
+  }
+  .arch-pipeline-arrow {
+    transform: rotate(90deg);
+    padding: 2px 0;
+    justify-content: center;
+  }
+}
+
+/* ---- Architecture Flow (vertical) ---- */
+.arch-flow-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.arch-flow-node {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+.arch-flow-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 0;
+}
+.arch-flow-connector-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+.arch-flow-connector-line {
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+}
+
+/* ---- Architecture CSS Animations (GPU-composited, no JS) ---- */
+@keyframes arch-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+.arch-bounce {
+  animation: arch-bounce 2s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes arch-bounce-sm {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
+}
+.arch-bounce-sm {
+  animation: arch-bounce-sm 1.8s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes arch-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.9; }
+}
+.arch-pulse {
+  animation: arch-pulse 2.2s ease-in-out infinite;
+  will-change: opacity;
+}
+
+@keyframes arch-bar-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.arch-bar-fill {
+  transform-origin: left;
+  animation: arch-bar-grow 0.8s ease-out 0.3s both;
+}

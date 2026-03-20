@@ -76,7 +76,7 @@ export default function TrustGraphTab({
         id: agent.address,
         name: agent.name,
         reputation: rep,
-        val: Math.max(4, (rep / 80) * 2),
+        val: 5,
         interactionCount: agent.interactions.length,
         color:
           rep > 1200
@@ -94,7 +94,7 @@ export default function TrustGraphTab({
           id: ix.from,
           name: getAgentName(ix.from),
           reputation: 1000,
-          val: 4,
+          val: 5,
           interactionCount: 0,
           color: "#7a7198",
         });
@@ -299,7 +299,7 @@ export default function TrustGraphTab({
             <ForceGraph2D
               graphData={graphData}
               backgroundColor="transparent"
-              nodeRelSize={6}
+              nodeRelSize={1}
               nodeLabel={(node) => {
                 const graphNode = node as GraphNode;
                 return `${graphNode.name}\n${truncateAddress(graphNode.id as `0x${string}`)}\nTrust: ${(graphNode.reputation / 10).toFixed(1)}`;
@@ -315,7 +315,7 @@ export default function TrustGraphTab({
               }}
               nodeCanvasObject={(node, ctx, globalScale) => {
                 const graphNode = node as GraphNode & { x?: number; y?: number };
-                const size = graphNode.val || 4;
+                const size = 5;
                 const x = graphNode.x ?? 0;
                 const y = graphNode.y ?? 0;
                 const isSelected = selectedAgent && graphNode.id === selectedAgent;
