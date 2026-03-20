@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySearchPayment } from "@/lib/chain";
-import { cacheSet } from "@/lib/cache";
+import { issueToken } from "@/lib/cache";
 
 export async function POST(req: NextRequest) {
   const { txHash, address } = await req.json();
@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await verifySearchPayment(txHash, address);
+  console.log("verify result:", result);
 
   if (!result.ok) {
     return NextResponse.json(
@@ -19,8 +20,6 @@ export async function POST(req: NextRequest) {
   }
 
   // Issue a short-lived search pass (5 min) tied to this address
-  const token = `${address.toLowerCase()}-${Date.now()}`;
-  cacheSet(`pass:${address.toLowerCase()}`, token, 5 * 60_000);
-
+  const token = issueToken(address);
   return NextResponse.json({ ok: true, token });
 }
