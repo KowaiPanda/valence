@@ -1,7 +1,7 @@
 export interface RankedAgent {
   address: string;
   profile: string;
-  chainScore: number;       // raw from contract (e.g. 1200)
+  chainScore: number;       // raw score from contract
   chainScoreNorm: number;   // normalised 0–1
   geminiScore: number;      // 0–1
   sybilMultiplier: number;  // 0.4 or 1.0

@@ -70,7 +70,6 @@ export default function AgentInteractionPanel({
     }
   }, [status, lastType, agentAddress, onSuccess]);
 
-  // Auto-reset after 6s for error only — done state persists until modal closes
   useEffect(() => {
     if (status === "error" && !modalOpen) {
       const t = setTimeout(reset, 6000);
@@ -204,7 +203,7 @@ export default function AgentInteractionPanel({
         )}
       </AnimatePresence>
 
-      {/* x402 Payment Modal — shows agent fee breakdown + protocol fee */}
+      {/* x402 Payment Modal */}
       <X402PaymentModal
         isOpen={modalOpen}
         onClose={handleModalClose}

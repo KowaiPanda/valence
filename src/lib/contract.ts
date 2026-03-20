@@ -2,7 +2,7 @@ import { createPublicClient, http, parseAbi, type Address, formatEther } from "v
 
 /* ---- Chain Config ---- */
 const polkadotEvmTestnet = {
-  id: 420420421,
+  id: 420420417,
   name: "Polkadot EVM Testnet",
   nativeCurrency: { name: "PAS", symbol: "PAS", decimals: 18 },
   rpcUrls: {

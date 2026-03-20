@@ -19,7 +19,7 @@ export function cacheSet<T>(key: string, value: T, ttlMs = 60_000) {
 // Self-contained — no shared state needed between verify-payment and search routes
 
 const SECRET = process.env.TOKEN_SECRET ?? "valence-dev-secret-change-in-prod";
-const TTL_MS = 5 * 60 * 1000; // 5 minutes
+const TTL_MS = 5 * 60 * 1000;
 
 export function issueToken(address: string): string {
   const expires = Date.now() + TTL_MS;

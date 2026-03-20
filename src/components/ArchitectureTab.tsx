@@ -29,7 +29,6 @@ import {
   truncateAddress,
 } from "@/lib/contract";
 
-/* ---- shared animation config ---- */
 const vp = { once: true, margin: "-40px" as const };
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 14 },

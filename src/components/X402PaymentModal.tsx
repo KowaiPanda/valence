@@ -116,7 +116,7 @@ export default function X402PaymentModal({
               overflowY: "auto",
             }}
           >
-            {/* ── Header ──────────────────────────────────────────────────── */}
+            {/* Header*/}
             <div
               style={{
                 padding: "20px 24px 16px",
@@ -164,7 +164,7 @@ export default function X402PaymentModal({
 
             <div style={{ padding: "20px 24px" }}>
 
-              {/* ── Agent info ───────────────────────────────────────────── */}
+              {/*Agent info*/}
               <div
                 style={{
                   background: "rgba(255,255,255,0.03)",
@@ -188,7 +188,7 @@ export default function X402PaymentModal({
                 </p>
               </div>
 
-              {/* ── Service selector ────────────────────────────────────── */}
+              {/* Service selector */}
               <div
                 style={{
                     borderRadius: 10,
@@ -266,7 +266,7 @@ export default function X402PaymentModal({
               >
               </div>
 
-              {/* ── Status / confirm area ────────────────────────────────── */}
+              {/* Status / confirm area */}
               <AnimatePresence mode="wait">
                 {status === "done" ? (
                   <motion.div

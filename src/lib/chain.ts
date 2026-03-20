@@ -34,7 +34,7 @@ export async function getReputationScore(
       functionName: "getAgentReputation",
       args: [agent],
     });
-    return Number(raw); // already ×100 scaled by the Rust contract
+    return Number(raw);
   } catch {
     return 1000;
   }

@@ -86,7 +86,7 @@ export function useSearchWithPayment() {
         }) as bigint;
 
         // ── 3. Plain transfer to owner wallet — NOT a contract call ──────────────
-        // This is the x402 search fee. It does NOT record anything on-chain.
+        // This is the x402 search fee. It does not record anything on-chain.
         setStatus("awaiting_payment");
 
         const OWNER_ADDRESS = process.env.NEXT_PUBLIC_OWNER_ADDRESS as `0x${string}`;

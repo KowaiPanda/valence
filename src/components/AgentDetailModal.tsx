@@ -26,7 +26,6 @@ function getTrustTier(reputation: number): string {
 export default function AgentDetailModal({ agent, onClose }: AgentDetailModalProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
-  // Close on escape key
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -69,14 +68,14 @@ export default function AgentDetailModal({ agent, onClose }: AgentDetailModalPro
       const interactionIndex = interactions.length - 1 - (i - 1);
       if (interactionIndex >= 0 && interactionIndex < interactions.length) {
         const ix = interactions[interactionIndex];
-        if (ix.interactionType === 1) currentScore += 200; // Payment
+        if (ix.interactionType === 1) currentScore += 200; // x402 Payment
         if (ix.interactionType === 2) currentScore += 120; // Positive
         if (ix.interactionType === 3) currentScore -= 100; // Negative
       }
 
       dataPoints.push({
         time: timeStr,
-        value: Number((currentScore / 10).toFixed(1)), // Scale down to match UI (e.g. 100.0)
+        value: Number((currentScore / 10).toFixed(1)),
       });
     }
 
