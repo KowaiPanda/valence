@@ -7,6 +7,7 @@ import { type AgentData, truncateAddress } from "@/lib/contract";
 interface AgentSidebarProps {
   agents: AgentData[];
   loading: boolean;
+  onOpenModal?: (address: `0x${string}`) => void;
 }
 
 function getMedalClass(index: number): string {
@@ -22,7 +23,7 @@ function getTrustColor(reputation: number): string {
   return "var(--color-trust-low)";
 }
 
-export default function AgentSidebar({ agents, loading }: AgentSidebarProps) {
+export default function AgentSidebar({ agents, loading, onOpenModal }: AgentSidebarProps) {
   const sortedAgents = [...agents].sort((a, b) => b.reputation - a.reputation);
 
   const totalTrust = agents.reduce((sum, a) => sum + a.reputation, 0);
@@ -128,7 +129,7 @@ export default function AgentSidebar({ agents, loading }: AgentSidebarProps) {
               return (
                 <motion.div
                   key={agent.address}
-                  className="flex items-center gap-3 p-3 rounded-xl transition-all cursor-default group"
+                  className="flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer group"
                   style={{
                     background: isTopThree ? "rgba(21, 17, 39, 0.4)" : "transparent",
                     borderLeft: isTopThree ? `2px solid ${getTrustColor(agent.reputation)}` : "2px solid transparent",
@@ -137,6 +138,7 @@ export default function AgentSidebar({ agents, loading }: AgentSidebarProps) {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.04 }}
                   whileHover={{ background: "rgba(21, 17, 39, 0.6)" }}
+                  onClick={() => onOpenModal?.(agent.address)}
                 >
                   {/* Rank */}
                   {isTopThree ? (

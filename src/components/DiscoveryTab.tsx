@@ -39,6 +39,7 @@ interface DiscoveryTabProps {
   selectedAgent?: `0x${string}`;
   onSelectAgent?: (address: `0x${string}`) => void;
   onOpenTrustGraph?: () => void;
+  onOpenModal?: (address: `0x${string}`) => void;
 }
 
 function ScoreRing({ value, size = 44, strokeWidth = 3, color }: { value: number; size?: number; strokeWidth?: number; color: string }) {
@@ -95,6 +96,7 @@ export default function DiscoveryTab({
   selectedAgent,
   onSelectAgent,
   onOpenTrustGraph,
+  onOpenModal,
 }: DiscoveryTabProps) {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
 
@@ -378,18 +380,31 @@ export default function DiscoveryTab({
                             agentProfile={agent.description}
                             onSuccess={(addr, type) => console.log(`Recorded type ${type} for ${addr}`)}
                           />
-                          <button
-                            type="button"
-                            className="mt-3 text-xs font-medium text-primary hover:text-primary-light transition-colors flex items-center gap-1"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onSelectAgent?.(agent.address as `0x${string}`);
-                              onOpenTrustGraph?.();
-                            }}
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            Highlight in Trust Graph
-                          </button>
+                          <div className="mt-3 flex items-center gap-4">
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-primary hover:text-primary-light transition-colors flex items-center gap-1"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onSelectAgent?.(agent.address as `0x${string}`);
+                                onOpenTrustGraph?.();
+                              }}
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              Highlight in Trust Graph
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-purple hover:text-purple-light transition-colors flex items-center gap-1"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onOpenModal?.(agent.address as `0x${string}`);
+                              }}
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              View Full Profile
+                            </button>
+                          </div>
                         </div>
 
                         <div>

@@ -10,6 +10,7 @@ import GatekeeperTab from "@/components/GatekeeperTab";
 import DiscoveryTab from "@/components/DiscoveryTab";
 import TrustGraphTab from "@/components/TrustGraphTab";
 import ArchitectureTab from "@/components/ArchitectureTab";
+import AgentDetailModal from "@/components/AgentDetailModal";
 import type { SearchMeta, SearchResult } from "@/hooks/useSearchWithPayment.wagmi";
 import {
   type AgentData,
@@ -38,6 +39,7 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState<SearchResult[] | undefined>(undefined);
   const [searchMeta, setSearchMeta] = useState<SearchMeta | undefined>(undefined);
   const [selectedAgent, setSelectedAgent] = useState<`0x${string}` | undefined>(undefined);
+  const [modalAgentAddress, setModalAgentAddress] = useState<`0x${string}` | null>(null);
 
   // Fetch on-chain data
   const fetchData = useCallback(async () => {
@@ -145,6 +147,7 @@ export default function Home() {
                   selectedAgent={selectedAgent}
                   onSelectAgent={(address) => setSelectedAgent(address)}
                   onOpenTrustGraph={() => setActiveTab("trustgraph")}
+                  onOpenModal={setModalAgentAddress}
                 />
               )}
               {activeTab === "trustgraph" && (
@@ -154,6 +157,7 @@ export default function Home() {
                   loading={loading}
                   selectedAgent={selectedAgent}
                   onSelectAgent={(address) => setSelectedAgent(address)}
+                  onOpenModal={setModalAgentAddress}
                 />
               )}
               {activeTab === "architecture" && <ArchitectureTab />}
@@ -161,9 +165,21 @@ export default function Home() {
           </div>
 
           {/* Right: Agent Sidebar */}
-          <AgentSidebar agents={agents} loading={loading} />
+          <AgentSidebar 
+            agents={agents} 
+            loading={loading} 
+            onOpenModal={setModalAgentAddress} 
+          />
         </main>
       </div>
+
+      {/* Global Agent Detail Modal Overlay */}
+      {modalAgentAddress && (
+        <AgentDetailModal
+          agent={agents.find((a) => a.address === modalAgentAddress) || null}
+          onClose={() => setModalAgentAddress(null)}
+        />
+      )}
     </div>
   );
 }

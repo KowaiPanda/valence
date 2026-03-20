@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
-import { Network, Users, GitBranch, Activity, X } from "lucide-react";
+import { Network, Users, GitBranch, Activity, X, ExternalLink } from "lucide-react";
 import {
   type AgentData,
   type AgentInteraction,
@@ -21,6 +21,7 @@ interface TrustGraphTabProps {
   loading: boolean;
   selectedAgent?: `0x${string}`;
   onSelectAgent?: (address: `0x${string}`) => void;
+  onOpenModal?: (address: `0x${string}`) => void;
 }
 
 interface GraphNode {
@@ -61,6 +62,7 @@ export default function TrustGraphTab({
   loading,
   selectedAgent,
   onSelectAgent,
+  onOpenModal,
 }: TrustGraphTabProps) {
   const [showPayments, setShowPayments] = useState(true);
   const [showPositive, setShowPositive] = useState(true);
@@ -463,8 +465,16 @@ export default function TrustGraphTab({
                     </p>
                     <p className="text-[9px] text-muted uppercase">Txns</p>
                   </div>
-                </div>
-              </motion.div>
+                  </div>
+                  
+                  <button
+                    onClick={() => onOpenModal?.(selectedAgentData.address as `0x${string}`)}
+                    className="mt-3 w-full py-2 flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg bg-white/5 hover:bg-white/10 text-primary transition-colors border border-white/5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    View Full Profile
+                  </button>
+                </motion.div>
             )}
           </>
         )}
